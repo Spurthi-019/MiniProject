@@ -4,6 +4,9 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 
+// routes
+const authRoutes = require('./routes/auth');
+
 const app = express();
 
 // Middleware
@@ -12,6 +15,9 @@ app.use(express.json());
 
 // Simple health route
 app.get('/', (req, res) => res.json({ message: 'Server Running' }));
+
+// Mount auth routes
+app.use('/api/auth', authRoutes);
 
 // MongoDB connection (optional) - uses MONGODB_URI from server/.env if provided
 const mongoUri = process.env.MONGODB_URI || '';
