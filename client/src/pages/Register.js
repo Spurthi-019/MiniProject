@@ -81,11 +81,11 @@ function Register() {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
-      setSuccess('Registration successful! Redirecting to login...');
+      setSuccess('Registration successful! Redirecting to dashboard...');
       
-      // Redirect to login after short delay
+      // Redirect to dashboard after short delay
       setTimeout(() => {
-        navigate('/login');
+        navigate('/dashboard');
       }, 1500);
 
     } catch (err) {
@@ -189,6 +189,7 @@ function Register() {
               >
                 <MenuItem value="Team Members">Team Member</MenuItem>
                 <MenuItem value="Mentor">Mentor</MenuItem>
+                <MenuItem value="Admin/Team Lead">Admin/Team Lead</MenuItem>
               </Select>
               <FormHelperText>Select your role in the team</FormHelperText>
             </FormControl>
