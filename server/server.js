@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 
 // routes
 const authRoutes = require('./routes/auth');
+const projectRoutes = require('./routes/project');
+const taskRoutes = require('./routes/task');
 
 const app = express();
 
@@ -18,6 +20,12 @@ app.get('/', (req, res) => res.json({ message: 'Server Running' }));
 
 // Mount auth routes
 app.use('/api/auth', authRoutes);
+
+// Mount project routes
+app.use('/api/projects', projectRoutes);
+
+// Mount task routes
+app.use('/api/tasks', taskRoutes);
 
 // MongoDB connection (optional) - uses MONGODB_URI from server/.env if provided
 const mongoUri = process.env.MONGODB_URI || '';
