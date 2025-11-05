@@ -103,4 +103,77 @@ router.get('/project/:projectId', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/tasks/my-tasks - Get all tasks assigned to the authenticated user
+router.get('/my-tasks', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch all tasks assigned to this user
+    const tasks = await Task.find({ assignedTo: userId })
+      .populate('assignedTo', 'username email role')
+      .populate('project', 'name teamCode')
+      .sort({ createdAt: -1 }); // newest first
+
+    return res.status(200).json({
+      message: 'Tasks retrieved successfully',
+      count: tasks.length,
+      tasks
+    });
+  } catch (err) {
+    console.error('Get my tasks error:', err);
+    return res.status(500).json({ message: 'Server error fetching tasks' });
+  }
+});
+
+// PUT /api/tasks/:taskId/status - Update task status
+router.put('/:taskId/status', authMiddleware, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+
+    // Validate status value
+    const validStatuses = ['To Do', 'In Progress', 'Done'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Must be: To Do, In Progress, or Done' });
+    }
+
+    // Find task
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // Verify user is assigned to this task or is the team lead
+    const userId = req.user.id;
+    const project = await Project.findById(task.project);
+    
+    const isAssigned = task.assignedTo && task.assignedTo.toString() === userId;
+    const isTeamLead = project && project.teamLead.toString() === userId;
+
+    if (!isAssigned && !isTeamLead) {
+      return res.status(403).json({ message: 'You can only update status of tasks assigned to you or if you are the team lead' });
+    }
+
+    // Update status
+    task.status = status;
+    await task.save();
+
+    // Populate references for response
+    await task.populate('assignedTo', 'username email role');
+    await task.populate('project', 'name teamCode');
+
+    return res.status(200).json({
+      message: 'Task status updated successfully',
+      task
+    });
+  } catch (err) {
+    console.error('Update task status error:', err);
+    return res.status(500).json({ message: 'Server error updating task status' });
+  }
+});
+
 module.exports = router;

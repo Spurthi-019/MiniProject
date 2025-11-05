@@ -129,4 +129,141 @@ router.post('/join', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/projects/my-projects - Get all projects the user is part of
+router.get('/my-projects', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find all projects where user is team lead, member, or mentor
+    const projects = await Project.find({
+      $or: [
+        { teamLead: userId },
+        { members: userId },
+        { mentors: userId }
+      ]
+    })
+      .populate('teamLead', 'username email role')
+      .populate('members', 'username email role')
+      .populate('mentors', 'username email role')
+      .sort({ createdAt: -1 }); // newest first
+
+    return res.status(200).json({
+      message: 'Projects retrieved successfully',
+      count: projects.length,
+      projects
+    });
+  } catch (err) {
+    console.error('Get my projects error:', err);
+    return res.status(500).json({ message: 'Server error fetching projects' });
+  }
+});
+
+// GET /api/projects/:projectId/metrics - Get project metrics including individual contributions
+router.get('/:projectId/metrics', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Find project and verify access
+    const project = await Project.findById(projectId)
+      .populate('teamLead', 'username email role')
+      .populate('members', 'username email role')
+      .populate('mentors', 'username email role');
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access (team lead, member, or mentor)
+    const userId = req.user.id;
+    const isTeamLead = project.teamLead._id.toString() === userId;
+    const isMember = project.members.some(m => m._id.toString() === userId);
+    const isMentor = project.mentors.some(m => m._id.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have access to this project' });
+    }
+
+    // Get all tasks for this project
+    const Task = require('../models/Task');
+    const tasks = await Task.find({ project: projectId })
+      .populate('assignedTo', 'username email role');
+
+    // Calculate individual contribution metrics
+    const contributionMetrics = {};
+    
+    // Initialize metrics for all team members (including team lead)
+    const allMembers = [project.teamLead, ...project.members];
+    allMembers.forEach(member => {
+      contributionMetrics[member._id.toString()] = {
+        userId: member._id,
+        username: member.username,
+        email: member.email,
+        role: member.role,
+        totalTasks: 0,
+        completedTasks: 0,
+        inProgressTasks: 0,
+        todoTasks: 0,
+        completionRate: 0
+      };
+    });
+
+    // Count tasks for each member
+    tasks.forEach(task => {
+      if (task.assignedTo) {
+        const assignedId = task.assignedTo._id.toString();
+        if (contributionMetrics[assignedId]) {
+          contributionMetrics[assignedId].totalTasks++;
+          
+          if (task.status === 'Done') {
+            contributionMetrics[assignedId].completedTasks++;
+          } else if (task.status === 'In Progress') {
+            contributionMetrics[assignedId].inProgressTasks++;
+          } else if (task.status === 'To Do') {
+            contributionMetrics[assignedId].todoTasks++;
+          }
+        }
+      }
+    });
+
+    // Calculate completion rates
+    Object.keys(contributionMetrics).forEach(memberId => {
+      const metrics = contributionMetrics[memberId];
+      if (metrics.totalTasks > 0) {
+        metrics.completionRate = Math.round((metrics.completedTasks / metrics.totalTasks) * 100);
+      }
+    });
+
+    // Convert to array and sort by completion rate
+    const metricsArray = Object.values(contributionMetrics).sort((a, b) => b.completionRate - a.completionRate);
+
+    // Overall project statistics
+    const projectStats = {
+      totalTasks: tasks.length,
+      completedTasks: tasks.filter(t => t.status === 'Done').length,
+      inProgressTasks: tasks.filter(t => t.status === 'In Progress').length,
+      todoTasks: tasks.filter(t => t.status === 'To Do').length,
+      totalMembers: allMembers.length,
+      completionRate: tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'Done').length / tasks.length) * 100) : 0
+    };
+
+    return res.status(200).json({
+      message: 'Project metrics retrieved successfully',
+      project: {
+        id: project._id,
+        name: project.name,
+        description: project.description,
+        teamCode: project.teamCode,
+        teamLead: project.teamLead,
+        members: project.members,
+        mentors: project.mentors
+      },
+      projectStats,
+      contributionMetrics: metricsArray
+    });
+  } catch (err) {
+    console.error('Get project metrics error:', err);
+    return res.status(500).json({ message: 'Server error fetching project metrics' });
+  }
+});
+
 module.exports = router;

@@ -17,20 +17,20 @@ router.post('/register', async (req, res) => {
     const existing = await User.findOne({ $or: [{ username }, { email }] });
     if (existing) return res.status(409).json({ message: 'Username or email already in use' });
 
-    // Determine role: if this is the first user in the system, make them Admin/Team Lead
-    let assignedRole = role || undefined;
-    const userCount = await User.countDocuments();
-    if (userCount === 0) {
-      assignedRole = 'Admin/Team Lead';
-    }
-    if (!assignedRole) assignedRole = 'Team Members';
+    // Determine role: use provided role or default to 'Team Members'
+    let assignedRole = role || 'Team Members';
 
-    // Hash password before saving
-    const salt = await bcrypt.genSalt(10);
-    const hashed = await bcrypt.hash(password, salt);
-
-    const user = new User({ username, email, password: hashed, role: assignedRole });
+    // Create user (password will be hashed by the pre-save hook in User model)
+    const user = new User({ username, email, password, role: assignedRole });
     await user.save();
+
+    console.log(`✅ New user registered and saved to MongoDB:`, {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt
+    });
 
     // Generate JWT
     const jwtSecret = process.env.JWT_SECRET;
@@ -89,6 +89,20 @@ router.post('/login', async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/auth/users - Get all users (for debugging/testing)
+router.get('/users', async (req, res) => {
+  try {
+    const users = await User.find({}, 'username email role createdAt');
+    return res.status(200).json({
+      count: users.length,
+      users: users
+    });
+  } catch (err) {
+    console.error('Error fetching users:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 });
