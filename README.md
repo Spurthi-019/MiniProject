@@ -29,12 +29,14 @@ A full-stack collaborative project management system with role-based dashboards 
 - ✏️ Update task status via dropdown
 - 📈 View all assigned tasks with project details
 - 🎨 Color-coded status chips and progress indicators
+- 📉 **Burndown Chart**: Visual project progress tracking with ideal vs. actual burndown lines
 
 #### Mentor Dashboard
 - � View all projects being mentored
 - 🔍 Drill-down into project details with tabs:
   - **Tasks Tab**: Complete task list with status, assignee, deadlines
   - **Contribution Metrics Tab**: Individual performance analytics
+  - **Burndown Chart Tab**: Visual project progress with ideal and actual task completion trends
 - 📊 Visual progress bars and completion rates
 - 📈 Team member performance comparison
 
@@ -49,6 +51,12 @@ A full-stack collaborative project management system with role-based dashboards 
 - 📈 Task completion rates per member
 - 🎯 Performance ranking by completion rate
 - 📉 Task distribution by status
+- 📉 **Burndown Chart Visualization**: 
+  - Ideal burndown line (linear projection from start to end)
+  - Actual remaining tasks line (based on task completion dates)
+  - Project timeline with start/end dates
+  - Daily progress tracking
+  - Statistics summary (total, completed, remaining tasks, progress %)
 
 ## 🛠️ Tech Stack
 
@@ -57,6 +65,8 @@ A full-stack collaborative project management system with role-based dashboards 
 - **UI Library:** Material-UI (MUI) 7.3.5
 - **Routing:** React Router DOM 7.9.5
 - **HTTP Client:** Axios 1.13.2
+- **Charts:** Chart.js 4.5.1, react-chartjs-2 5.3.1
+- **Real-time:** Socket.IO Client 4.8.1
 - **Icons:** Material Icons
 
 ### Backend
@@ -64,6 +74,7 @@ A full-stack collaborative project management system with role-based dashboards 
 - **Framework:** Express.js 5.1.0
 - **Database:** MongoDB with Mongoose 8.19.3
 - **Authentication:** JWT (jsonwebtoken), bcryptjs
+- **Real-time:** Socket.IO 4.8.1
 - **Dev Tools:** nodemon 3.1.10, dotenv 17.2.3, cors 2.8.5
 
 ## 📦 Installation
@@ -294,6 +305,37 @@ GET /api/projects/:projectId/metrics
 Authorization: Bearer <token>
 ```
 **Response:** Returns project statistics and individual contribution metrics
+
+#### Get Burndown Chart Data
+```http
+GET /api/projects/:projectId/burndown-data
+Authorization: Bearer <token>
+```
+**Response:** Returns burndown chart data with:
+- `totalInitialTasks`: Total number of tasks in the project
+- `currentRemainingTasks`: Number of tasks not yet completed
+- `completedTasks`: Number of completed tasks
+- `projectStartDate`: Project/earliest task creation date
+- `projectEndDate`: Latest task deadline or current date
+- `burndownData`: Array of `{date, remainingTasks}` objects for daily tracking
+
+**Example Response:**
+```json
+{
+  "message": "Burn-down data retrieved successfully",
+  "totalInitialTasks": 10,
+  "currentRemainingTasks": 4,
+  "completedTasks": 6,
+  "projectStartDate": "2025-01-15",
+  "projectEndDate": "2025-02-15",
+  "burndownData": [
+    {"date": "2025-01-15", "remainingTasks": 10},
+    {"date": "2025-01-16", "remainingTasks": 9},
+    {"date": "2025-01-17", "remainingTasks": 7},
+    ...
+  ]
+}
+```
 
 #### Get All Users (Debug)
 ```http
