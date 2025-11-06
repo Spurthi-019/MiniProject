@@ -21,7 +21,12 @@ import {
   Divider,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -30,7 +35,10 @@ import GroupIcon from '@mui/icons-material/Group';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PendingIcon from '@mui/icons-material/Pending';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
+import BurndownChart from '../components/BurndownChart';
 
 function TeamMemberDashboard({ user }) {
   const navigate = useNavigate();
@@ -39,6 +47,8 @@ function TeamMemberDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [burndownDialogOpen, setBurndownDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -101,6 +111,16 @@ function TeamMemberDashboard({ user }) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
+  };
+
+  const handleViewBurndown = (project) => {
+    setSelectedProject(project);
+    setBurndownDialogOpen(true);
+  };
+
+  const handleCloseBurndownDialog = () => {
+    setBurndownDialogOpen(false);
+    setSelectedProject(null);
   };
 
   // Categorize tasks by status
@@ -331,6 +351,15 @@ function TeamMemberDashboard({ user }) {
                             </>
                           }
                         />
+                        <Button
+                          variant="outlined"
+                          color="primary"
+                          startIcon={<TrendingDownIcon />}
+                          onClick={() => handleViewBurndown(project)}
+                          sx={{ ml: 2 }}
+                        >
+                          View Burndown
+                        </Button>
                       </ListItem>
                       {index < projects.length - 1 && <Divider />}
                     </React.Fragment>
@@ -340,6 +369,36 @@ function TeamMemberDashboard({ user }) {
             </Paper>
           </>
         )}
+
+        {/* Burndown Chart Dialog */}
+        <Dialog
+          open={burndownDialogOpen}
+          onClose={handleCloseBurndownDialog}
+          maxWidth="lg"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <TrendingDownIcon sx={{ mr: 1 }} color="primary" />
+                <Typography variant="h6">
+                  Burndown Chart - {selectedProject?.name}
+                </Typography>
+              </Box>
+              <IconButton onClick={handleCloseBurndownDialog}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent dividers>
+            {selectedProject && <BurndownChart projectId={selectedProject._id} />}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseBurndownDialog} variant="contained">
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     </Box>
   );

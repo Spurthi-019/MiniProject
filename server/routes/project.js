@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware, authorize } = require('../authMiddleware');
 const Project = require('../models/Project');
+const Task = require('../models/Task');
 
 /**
  * Generate a unique 6-digit teamCode
@@ -184,7 +185,6 @@ router.get('/:projectId/metrics', authMiddleware, async (req, res) => {
     }
 
     // Get all tasks for this project
-    const Task = require('../models/Task');
     const tasks = await Task.find({ project: projectId })
       .populate('assignedTo', 'username email role');
 
@@ -263,6 +263,129 @@ router.get('/:projectId/metrics', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get project metrics error:', err);
     return res.status(500).json({ message: 'Server error fetching project metrics' });
+  }
+});
+
+// GET /api/projects/:projectId/burndown-data - Get burn-down chart data for a project
+router.get('/:projectId/burndown-data', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Find project and verify access
+    const project = await Project.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access (team lead, member, or mentor)
+    const userId = req.user.id;
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMember = project.members.some(m => m.toString() === userId);
+    const isMentor = project.mentors.some(m => m.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have access to this project' });
+    }
+
+    // Get all tasks for this project
+    const tasks = await Task.find({ project: projectId }).sort({ createdAt: 1 });
+
+    if (tasks.length === 0) {
+      return res.status(200).json({
+        message: 'No tasks found for this project',
+        burndownData: [],
+        totalInitialTasks: 0
+      });
+    }
+
+    // Total initial tasks
+    const totalInitialTasks = tasks.length;
+
+    // Determine the project start date (earliest task creation or project creation)
+    const projectStartDate = new Date(Math.min(
+      project.createdAt.getTime(),
+      tasks[0].createdAt.getTime()
+    ));
+
+    // Determine the end date (latest deadline or current date)
+    const taskDeadlines = tasks
+      .filter(t => t.deadline)
+      .map(t => new Date(t.deadline).getTime());
+    
+    const latestDeadline = taskDeadlines.length > 0 
+      ? Math.max(...taskDeadlines) 
+      : Date.now();
+    
+    const projectEndDate = new Date(Math.max(latestDeadline, Date.now()));
+
+    // Create a map to track when tasks were completed
+    const taskCompletionMap = new Map();
+    tasks.forEach(task => {
+      if (task.status === 'Done' && task.updatedAt) {
+        const completionDate = new Date(task.updatedAt).toISOString().split('T')[0];
+        taskCompletionMap.set(completionDate, (taskCompletionMap.get(completionDate) || 0) + 1);
+      }
+    });
+
+    // Generate daily data points from start to end
+    const burndownData = [];
+    let currentDate = new Date(projectStartDate);
+    currentDate.setHours(0, 0, 0, 0); // Reset time to start of day
+    
+    const endDate = new Date(projectEndDate);
+    endDate.setHours(23, 59, 59, 999); // Set to end of day
+
+    let remainingTasks = totalInitialTasks;
+    const currentTime = new Date();
+
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      // Only process dates up to today
+      if (currentDate <= currentTime) {
+        // Calculate tasks completed on this date
+        const completedOnThisDate = taskCompletionMap.get(dateStr) || 0;
+        
+        // Update remaining tasks
+        if (completedOnThisDate > 0) {
+          remainingTasks -= completedOnThisDate;
+        }
+
+        burndownData.push({
+          date: dateStr,
+          remainingTasks: Math.max(0, remainingTasks)
+        });
+      } else {
+        // For future dates, project the ideal burn-down line
+        // (This helps visualize where the project should be)
+        burndownData.push({
+          date: dateStr,
+          remainingTasks: Math.max(0, remainingTasks),
+          projected: true
+        });
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Calculate current completion status
+    const completedTasks = tasks.filter(t => t.status === 'Done').length;
+    const currentRemainingTasks = totalInitialTasks - completedTasks;
+
+    return res.status(200).json({
+      message: 'Burn-down data retrieved successfully',
+      totalInitialTasks,
+      currentRemainingTasks,
+      completedTasks,
+      projectStartDate: projectStartDate.toISOString().split('T')[0],
+      projectEndDate: projectEndDate.toISOString().split('T')[0],
+      burndownData
+    });
+  } catch (err) {
+    console.error('Get burn-down data error:', err);
+    return res.status(500).json({ message: 'Server error fetching burn-down data' });
   }
 });
 

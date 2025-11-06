@@ -43,7 +43,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PendingIcon from '@mui/icons-material/Pending';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import axios from 'axios';
+import BurndownChart from '../components/BurndownChart';
 
 function MentorDashboard({ user }) {
   const navigate = useNavigate();
@@ -265,6 +267,7 @@ function MentorDashboard({ user }) {
                 <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 2 }}>
                   <Tab label="Tasks" icon={<AssignmentIcon />} iconPosition="start" />
                   <Tab label="Contribution Metrics" icon={<BarChartIcon />} iconPosition="start" />
+                  <Tab label="Burndown Chart" icon={<TrendingDownIcon />} iconPosition="start" />
                 </Tabs>
 
                 {/* Tab 0: Tasks List */}
@@ -422,6 +425,13 @@ function MentorDashboard({ user }) {
                         </Table>
                       </TableContainer>
                     )}
+                  </Box>
+                )}
+
+                {/* Tab 2: Burndown Chart */}
+                {tabValue === 2 && (
+                  <Box>
+                    <BurndownChart projectId={selectedProject?._id} />
                   </Box>
                 )}
               </>
