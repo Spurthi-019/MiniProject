@@ -39,6 +39,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
 import BurndownChart from '../components/BurndownChart';
+import RecommendationWidget from '../components/RecommendationWidget';
 
 function TeamMemberDashboard({ user }) {
   const navigate = useNavigate();
@@ -242,6 +243,20 @@ function TeamMemberDashboard({ user }) {
           </Box>
         ) : (
           <>
+            {/* AI Recommendations Section - Proactive Guidance */}
+            {projects.length > 0 && (
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                {projects.map(project => (
+                  <Grid item xs={12} lg={6} key={project._id}>
+                    <RecommendationWidget 
+                      projectId={project._id} 
+                      limit={3}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+
             {/* Tasks Section */}
             <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
