@@ -84,49 +84,70 @@ const RecommendationWidgetDemo = () => {
 
   if (isAuthenticating) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <CircularProgress size={60} />
-          <Typography variant="h6" sx={{ mt: 3 }} color="text.secondary">
-            Authenticating...
-          </Typography>
-        </Box>
-      </Container>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+      }}>
+        <Container maxWidth="md">
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <CircularProgress size={60} />
+            <Typography variant="h6" sx={{ mt: 3 }} color="text.secondary">
+              Authenticating...
+            </Typography>
+          </Box>
+        </Container>
+      </Box>
     );
   }
 
   if (authError) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {authError}
-        </Alert>
-        <Button variant="contained" href="/login">
-          Go to Login
-        </Button>
-      </Container>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+      }}>
+        <Container maxWidth="md">
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {authError}
+          </Alert>
+          <Button variant="contained" href="/login">
+            Go to Login
+          </Button>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          AI Recommendations Widget - Demo
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Test the AI-powered project recommendations widget
-        </Typography>
-        <Alert severity="success" sx={{ mt: 2 }}>
-          ✅ Auto-logged in as: <strong>alice@example.com</strong>
-        </Alert>
-        <Alert severity="info" sx={{ mt: 1 }}>
-          Token in localStorage: <strong>{localStorage.getItem('token') ? 'Yes ✓' : 'No ✗'}</strong>
-        </Alert>
-      </Box>
+    <Box sx={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      py: 4 
+    }}>
+      <Container maxWidth="md"  sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h4" gutterBottom>
+            AI Recommendations Widget - Demo
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Test the AI-powered project recommendations widget
+          </Typography>
+          <Alert severity="success" sx={{ mt: 2 }}>
+            ✅ Auto-logged in as: <strong>alice@example.com</strong>
+          </Alert>
+          <Alert severity="info" sx={{ mt: 1 }}>
+            Token in localStorage: <strong>{localStorage.getItem('token') ? 'Yes ✓' : 'No ✗'}</strong>
+          </Alert>
+        </Box>
 
       {/* Controls */}
-      <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
+      <Paper elevation={2} sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>
           Widget Configuration
         </Typography>
@@ -176,7 +197,7 @@ const RecommendationWidgetDemo = () => {
       )}
 
       {/* Usage Instructions */}
-      <Paper elevation={1} sx={{ p: 3, mt: 4, bgcolor: 'grey.50' }}>
+      <Paper elevation={1} sx={{ p: 3, bgcolor: 'grey.50' }}>
         <Typography variant="h6" gutterBottom>
           Integration Guide
         </Typography>
@@ -196,7 +217,8 @@ import RecommendationWidget from './components/RecommendationWidget';
 `}
         </Typography>
       </Paper>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

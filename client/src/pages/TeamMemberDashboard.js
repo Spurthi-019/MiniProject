@@ -36,6 +36,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PendingIcon from '@mui/icons-material/Pending';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
 import BurndownChart from '../components/BurndownChart';
@@ -147,73 +148,112 @@ function TeamMemberDashboard({ user }) {
     }
   };
 
-  const TaskCard = ({ task }) => (
-    <Card sx={{ mb: 2, borderLeft: 4, borderColor: getStatusColor(task.status) + '.main' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
-          <Typography variant="h6" component="div">
-            {task.title}
-          </Typography>
-          <Chip
-            icon={getStatusIcon(task.status)}
-            label={task.status}
-            color={getStatusColor(task.status)}
-            size="small"
-          />
-        </Box>
-        
-        {task.description && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            {task.description}
-          </Typography>
-        )}
-        
-        <Typography variant="caption" color="text.secondary" display="block">
-          Project: {task.project?.name || 'N/A'}
-        </Typography>
-        
-        {task.deadline && (
-          <Typography variant="caption" color="text.secondary" display="block">
-            Deadline: {new Date(task.deadline).toLocaleDateString()}
-          </Typography>
-        )}
-      </CardContent>
-      <CardActions>
-        <FormControl size="small" fullWidth sx={{ px: 1, pb: 1 }}>
-          <InputLabel>Update Status</InputLabel>
-          <Select
-            value={task.status}
-            label="Update Status"
-            onChange={(e) => handleStatusChange(task._id, e.target.value)}
-          >
-            <MenuItem value="To Do">To Do</MenuItem>
-            <MenuItem value="In Progress">In Progress</MenuItem>
-            <MenuItem value="Done">Done</MenuItem>
-          </Select>
-        </FormControl>
-      </CardActions>
-    </Card>
-  );
+  // Get deadline urgency with color coding
+  const getDeadlineUrgency = (deadline) => {
+    if (!deadline) return { level: 'none', color: 'text.secondary', bgColor: 'transparent', text: 'No deadline' };
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadlineDate = new Date(deadline);
+    deadlineDate.setHours(0, 0, 0, 0);
+    const daysUntil = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntil < 0) {
+      return { level: 'overdue', color: 'error.main', bgColor: 'error.light', text: `Overdue by ${Math.abs(daysUntil)} days`, icon: '🔴' };
+    } else if (daysUntil === 0) {
+      return { level: 'today', color: 'error.main', bgColor: 'error.light', text: 'Due Today', icon: '⚠️' };
+    } else if (daysUntil <= 3) {
+      return { level: 'urgent', color: 'warning.main', bgColor: 'warning.light', text: `Due in ${daysUntil} days`, icon: '⏰' };
+    } else if (daysUntil <= 7) {
+      return { level: 'soon', color: 'info.main', bgColor: 'info.light', text: `Due in ${daysUntil} days`, icon: '📅' };
+    } else {
+      return { level: 'normal', color: 'text.secondary', bgColor: 'transparent', text: deadlineDate.toLocaleDateString(), icon: '📆' };
+    }
+  };
+
+  const TaskCard = ({ task }) => {
+    const urgency = getDeadlineUrgency(task.deadline);
+    
+    return (
+      <Card 
+        sx={{ 
+          mb: 2, 
+          borderLeft: 4, 
+          borderColor: getStatusColor(task.status) + '.main',
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: 6,
+          }
+        }}
+      >
+        <CardContent sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+            <Typography variant="subtitle1" component="div" fontWeight="600">
+              {task.title}
+            </Typography>
+            <Chip
+              icon={getStatusIcon(task.status)}
+              label={task.status}
+              color={getStatusColor(task.status)}
+              size="small"
+            />
+          </Box>
+          
+          {task.description && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {task.description}
+            </Typography>
+          )}
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" display="flex" alignItems="center">
+              <Box component="span" sx={{ fontWeight: 600, mr: 0.5 }}>Project:</Box>
+              {task.project?.name || 'N/A'}
+            </Typography>
+            
+            {task.deadline && (
+              <Box 
+                sx={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: urgency.bgColor,
+                  width: 'fit-content'
+                }}
+              >
+                <Typography variant="caption" sx={{ color: urgency.color, fontWeight: 600 }}>
+                  {urgency.icon} {urgency.text}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </CardContent>
+        <CardActions sx={{ pt: 0, pb: 1.5 }}>
+          <FormControl size="small" fullWidth sx={{ px: 1 }}>
+            <InputLabel>Update Status</InputLabel>
+            <Select
+              value={task.status}
+              label="Update Status"
+              onChange={(e) => handleStatusChange(task._id, e.target.value)}
+            >
+              <MenuItem value="To Do">To Do</MenuItem>
+              <MenuItem value="In Progress">In Progress</MenuItem>
+              <MenuItem value="Done">Done</MenuItem>
+            </Select>
+          </FormControl>
+        </CardActions>
+      </Card>
+    );
+  };
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static">
-        <Toolbar>
-          <DashboardIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Team Member Dashboard
-          </Typography>
-          <Typography variant="body1" sx={{ mr: 2 }}>
-            {user.username}
-          </Typography>
-          <Button color="inherit" onClick={handleLogout}>
-            Logout
-          </Button>
-        </Toolbar>
-      </AppBar>
-
-      <Container sx={{ mt: 4, mb: 4 }}>
-        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Container maxWidth="xl" sx={{ mt: 3, mb: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Paper elevation={2} sx={{ p: 2.5, mb: 2 }}>
           <Typography variant="h5" gutterBottom>
             Welcome, {user.username}!
           </Typography>
@@ -226,13 +266,13 @@ function TeamMemberDashboard({ user }) {
         </Paper>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
 
         {success && (
-          <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
             {success}
           </Alert>
         )}
@@ -243,43 +283,60 @@ function TeamMemberDashboard({ user }) {
           </Box>
         ) : (
           <>
-            {/* AI Recommendations Section - Proactive Guidance */}
-            {projects.length > 0 && (
-              <Grid container spacing={3} sx={{ mb: 3 }}>
-                {projects.map(project => (
-                  <Grid item xs={12} lg={6} key={project._id}>
-                    <RecommendationWidget 
-                      projectId={project._id} 
-                      limit={3}
-                    />
-                  </Grid>
-                ))}
-              </Grid>
-            )}
-
-            {/* Tasks Section */}
-            <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            {/* Tasks Section - Primary Focus */}
+            <Paper elevation={2} sx={{ p: 2.5, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <AssignmentIcon sx={{ mr: 1, fontSize: 30 }} color="primary" />
                 <Typography variant="h5">My Tasks</Typography>
                 <Chip label={tasks.length} color="primary" sx={{ ml: 2 }} />
               </Box>
 
-              <Grid container spacing={3}>
+              <Grid container spacing={2}>
                 {/* To Do Column */}
                 <Grid item xs={12} md={4}>
-                  <Paper elevation={1} sx={{ p: 2, bgcolor: 'warning.light', color: 'warning.contrastText' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <PendingIcon sx={{ mr: 1 }} />
-                      <Typography variant="h6">To Do</Typography>
-                      <Chip label={todoTasks.length} size="small" sx={{ ml: 1 }} />
+                  <Paper 
+                    elevation={3} 
+                    sx={{ 
+                      p: 2, 
+                      bgcolor: 'warning.main', 
+                      color: 'warning.contrastText',
+                      borderRadius: 2,
+                      mb: 1
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PendingIcon sx={{ mr: 1, fontSize: 28 }} />
+                        <Typography variant="h6" fontWeight="bold">To Do</Typography>
+                      </Box>
+                      <Chip 
+                        label={todoTasks.length} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: 'rgba(255, 255, 255, 0.9)', 
+                          color: 'warning.main',
+                          fontWeight: 'bold'
+                        }} 
+                      />
                     </Box>
                   </Paper>
-                  <Box sx={{ mt: 2 }}>
+                  <Box sx={{ mt: 2, minHeight: 400 }}>
                     {todoTasks.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" align="center">
-                        No tasks in To Do
-                      </Typography>
+                      <Paper 
+                        elevation={0} 
+                        sx={{ 
+                          p: 3, 
+                          textAlign: 'center', 
+                          bgcolor: 'grey.50',
+                          border: '2px dashed',
+                          borderColor: 'grey.300',
+                          borderRadius: 2
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          No tasks in To Do
+                        </Typography>
+                      </Paper>
                     ) : (
                       todoTasks.map(task => <TaskCard key={task._id} task={task} />)
                     )}
@@ -288,18 +345,49 @@ function TeamMemberDashboard({ user }) {
 
                 {/* In Progress Column */}
                 <Grid item xs={12} md={4}>
-                  <Paper elevation={1} sx={{ p: 2, bgcolor: 'info.light', color: 'info.contrastText' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <PlayArrowIcon sx={{ mr: 1 }} />
-                      <Typography variant="h6">In Progress</Typography>
-                      <Chip label={inProgressTasks.length} size="small" sx={{ ml: 1 }} />
+                  <Paper 
+                    elevation={3} 
+                    sx={{ 
+                      p: 2, 
+                      bgcolor: 'info.main', 
+                      color: 'info.contrastText',
+                      borderRadius: 2,
+                      mb: 1
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PlayArrowIcon sx={{ mr: 1, fontSize: 28 }} />
+                        <Typography variant="h6" fontWeight="bold">In Progress</Typography>
+                      </Box>
+                      <Chip 
+                        label={inProgressTasks.length} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: 'rgba(255, 255, 255, 0.9)', 
+                          color: 'info.main',
+                          fontWeight: 'bold'
+                        }} 
+                      />
                     </Box>
                   </Paper>
-                  <Box sx={{ mt: 2 }}>
+                  <Box sx={{ mt: 2, minHeight: 400 }}>
                     {inProgressTasks.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" align="center">
-                        No tasks in progress
-                      </Typography>
+                      <Paper 
+                        elevation={0} 
+                        sx={{ 
+                          p: 3, 
+                          textAlign: 'center', 
+                          bgcolor: 'grey.50',
+                          border: '2px dashed',
+                          borderColor: 'grey.300',
+                          borderRadius: 2
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          No tasks in progress
+                        </Typography>
+                      </Paper>
                     ) : (
                       inProgressTasks.map(task => <TaskCard key={task._id} task={task} />)
                     )}
@@ -308,18 +396,49 @@ function TeamMemberDashboard({ user }) {
 
                 {/* Done Column */}
                 <Grid item xs={12} md={4}>
-                  <Paper elevation={1} sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <CheckCircleIcon sx={{ mr: 1 }} />
-                      <Typography variant="h6">Done</Typography>
-                      <Chip label={doneTasks.length} size="small" sx={{ ml: 1 }} />
+                  <Paper 
+                    elevation={3} 
+                    sx={{ 
+                      p: 2, 
+                      bgcolor: 'success.main', 
+                      color: 'success.contrastText',
+                      borderRadius: 2,
+                      mb: 1
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <CheckCircleIcon sx={{ mr: 1, fontSize: 28 }} />
+                        <Typography variant="h6" fontWeight="bold">Done</Typography>
+                      </Box>
+                      <Chip 
+                        label={doneTasks.length} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: 'rgba(255, 255, 255, 0.9)', 
+                          color: 'success.main',
+                          fontWeight: 'bold'
+                        }} 
+                      />
                     </Box>
                   </Paper>
-                  <Box sx={{ mt: 2 }}>
+                  <Box sx={{ mt: 2, minHeight: 400 }}>
                     {doneTasks.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" align="center">
-                        No completed tasks
-                      </Typography>
+                      <Paper 
+                        elevation={0} 
+                        sx={{ 
+                          p: 3, 
+                          textAlign: 'center', 
+                          bgcolor: 'grey.50',
+                          border: '2px dashed',
+                          borderColor: 'grey.300',
+                          borderRadius: 2
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          No completed tasks
+                        </Typography>
+                      </Paper>
                     ) : (
                       doneTasks.map(task => <TaskCard key={task._id} task={task} />)
                     )}
@@ -328,9 +447,29 @@ function TeamMemberDashboard({ user }) {
               </Grid>
             </Paper>
 
+            {/* AI Recommendations Section - Proactive Guidance */}
+            {projects.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <TrendingUpIcon color="primary" />
+                  AI Project Recommendations
+                </Typography>
+                <Grid container spacing={2}>
+                  {projects.map(project => (
+                    <Grid item xs={12} lg={6} key={project._id}>
+                      <RecommendationWidget 
+                        projectId={project._id} 
+                        limit={3}
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+
             {/* Projects Section */}
-            <Paper elevation={2} sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <Paper elevation={2} sx={{ p: 2.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <GroupIcon sx={{ mr: 1, fontSize: 30 }} color="secondary" />
                 <Typography variant="h5">My Projects</Typography>
                 <Chip label={projects.length} color="secondary" sx={{ ml: 2 }} />

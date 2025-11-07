@@ -1,5 +1,30 @@
+/* Colorful Gradient Background */
+body {
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  background-attachment: fixed !important;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .App {
   text-align: center;
+  min-height: 100vh;
+  flex: 1;
+}
+
+/* Better box-sizing for all elements */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 .App-logo {
@@ -36,3 +61,191 @@
     transform: rotate(360deg);
   }
 }
+
+/* Enhanced Paper/Card shadows */
+.MuiPaper-root {
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.12) !important;
+}
+
+/* Smooth transitions for all interactive elements */
+.MuiButton-root,
+.MuiCard-root,
+.MuiPaper-root,
+.MuiChip-root,
+.MuiTableRow-root {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Grid alignment fix */
+.MuiGrid-container {
+  align-items: stretch !important;
+  margin-bottom: 0 !important;
+}
+
+.MuiGrid-item {
+  display: flex !important;
+  flex-direction: column;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+
+/* Consistent spacing for containers */
+.MuiContainer-root {
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+}
+
+/* Center dashboards better */
+.MuiContainer-maxWidthXl {
+  max-width: 1400px !important;
+}
+
+/* Better scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default list styles */
+ul, ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Card hover effects */
+.MuiCard-root:hover {
+  transform: translateY(-6px) !important;
+  box-shadow: 0 16px 48px rgba(102, 126, 234, 0.2) !important;
+}
+
+/* Table row hover */
+.MuiTableRow-root:hover {
+  background-color: rgba(102, 126, 234, 0.04) !important;
+}
+
+/* Dialog backdrop */
+.MuiBackdrop-root {
+  backdrop-filter: blur(8px) !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Better focus outlines for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Loading spinner centering */
+.MuiCircularProgress-root {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Typography improvements */
+.MuiTypography-h5,
+.MuiTypography-h6 {
+  margin-bottom: 12px !important;
+}
+
+/* Alert spacing */
+.MuiAlert-root {
+  margin-bottom: 12px !important;
+  border-radius: 12px !important;
+}
+
+/* Paper spacing optimization */
+.MuiPaper-root {
+  margin-bottom: 16px !important;
+}
+
+.MuiPaper-elevation2 {
+  padding: 20px !important;
+}
+
+/* Chip spacing in groups */
+.MuiChip-root + .MuiChip-root {
+  margin-left: 8px !important;
+}
+
+/* Better table spacing */
+.MuiTable-root {
+  min-width: 100% !important;
+}
+
+.MuiTableCell-root {
+  vertical-align: middle !important;
+}
+
+/* Dialog improvements */
+.MuiDialog-paper {
+  margin: 32px !important;
+  max-height: calc(100% - 64px) !important;
+}
+
+/* AppBar shadow enhancement */
+.MuiAppBar-root {
+  box-shadow: 0 4px 24px rgba(102, 126, 234, 0.3) !important;
+}
+
+/* Form spacing */
+.MuiTextField-root + .MuiTextField-root {
+  margin-top: 16px !important;
+}
+
+/* Button group spacing */
+.MuiButton-root + .MuiButton-root {
+  margin-left: 12px !important;
+}
+
+/* Consistent border radius */
+.MuiOutlinedInput-root,
+.MuiFilledInput-root,
+.MuiInput-root {
+  border-radius: 10px !important;
+}
+
+/* Paper elevation consistency */
+.MuiPaper-elevation0 {
+  box-shadow: none !important;
+}
+
+.MuiPaper-elevation1 {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+.MuiPaper-elevation2 {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+.MuiPaper-elevation3 {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Responsive improvements */
+@media (max-width: 600px) {
+  .MuiContainer-root {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  
+  .MuiDialog-paper {
+    margin: 16px !important;
+  }
+}
+
+/* Glass-morphism enhancement */
+.MuiPaper-root,
+.MuiCard-root {
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Smooth color transitions */
+.MuiChip-root,
+.MuiButton-root,
+.MuiAlert-root {
+  transition: all 0.25s ease-in-out !important;
+}
+
+
