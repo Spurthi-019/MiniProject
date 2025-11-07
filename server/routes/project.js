@@ -3,6 +3,7 @@ const router = express.Router();
 const { authMiddleware, authorize } = require('../authMiddleware');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const { analyzeProjectHealth, getPrioritizedTasks } = require('../utils/aiAnalysis');
 
 /**
  * Generate a unique 6-digit teamCode
@@ -386,6 +387,154 @@ router.get('/:projectId/burndown-data', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get burn-down data error:', err);
     return res.status(500).json({ message: 'Server error fetching burn-down data' });
+  }
+});
+
+// GET /api/projects/:projectId/health-analysis - Analyze project health and identify risks
+router.get('/:projectId/health-analysis', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Find project and verify access
+    const project = await Project.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access (team lead, member, or mentor)
+    const userId = req.user.id;
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMember = project.members.some(m => m.toString() === userId);
+    const isMentor = project.mentors.some(m => m.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have access to this project' });
+    }
+
+    // Perform health analysis
+    const analysis = await analyzeProjectHealth(projectId);
+
+    return res.status(200).json({
+      message: 'Project health analysis completed',
+      analysis
+    });
+  } catch (err) {
+    console.error('Get project health analysis error:', err);
+    return res.status(500).json({ message: 'Server error analyzing project health' });
+  }
+});
+
+// GET /api/projects/:projectId/prioritized-tasks - Get prioritized task list
+router.get('/:projectId/prioritized-tasks', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Find project and verify access
+    const project = await Project.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access (team lead, member, or mentor)
+    const userId = req.user.id;
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMember = project.members.some(m => m.toString() === userId);
+    const isMentor = project.mentors.some(m => m.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have access to this project' });
+    }
+
+    // Get prioritized tasks
+    const prioritizedTasks = await getPrioritizedTasks(projectId, limit);
+
+    return res.status(200).json({
+      message: 'Prioritized tasks retrieved successfully',
+      count: prioritizedTasks.length,
+      tasks: prioritizedTasks
+    });
+  } catch (err) {
+    console.error('Get prioritized tasks error:', err);
+    return res.status(500).json({ message: 'Server error fetching prioritized tasks' });
+  }
+});
+
+// GET /api/projects/:projectId/recommendations - Get AI-powered project recommendations
+router.get('/:projectId/recommendations', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const suggestedTasksLimit = parseInt(req.query.limit) || 5;
+
+    // Find project and verify access
+    const project = await Project.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access (team lead, member, or mentor)
+    const userId = req.user.id;
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMember = project.members.some(m => m.toString() === userId);
+    const isMentor = project.mentors.some(m => m.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have access to this project' });
+    }
+
+    // Get health analysis for delay warnings
+    const healthAnalysis = await analyzeProjectHealth(projectId);
+
+    // Get prioritized tasks for next suggested tasks
+    const prioritizedTasks = await getPrioritizedTasks(projectId, suggestedTasksLimit);
+
+    // Prepare next suggested tasks
+    const nextSuggestedTasks = prioritizedTasks.map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      deadline: task.deadline,
+      assignedTo: task.assignedTo,
+      priorityLevel: task.priorityLevel,
+      reasons: task.reasons
+    }));
+
+    // Prepare project delay warning
+    const hasDelayRisk = healthAnalysis.isAtRisk;
+    const delayWarning = {
+      isDelayed: hasDelayRisk,
+      riskLevel: healthAnalysis.riskLevel,
+      message: hasDelayRisk 
+        ? `⚠️ Project is at ${healthAnalysis.riskLevel} risk of delays. ${healthAnalysis.riskFactors.join('. ')}`
+        : '✅ Project is on track with no significant delay risks.',
+      riskFactors: healthAnalysis.riskFactors,
+      recommendations: healthAnalysis.recommendations
+    };
+
+    // Additional insights
+    const insights = {
+      urgentTasksCount: healthAnalysis.urgentTasks.length,
+      teamVelocity: healthAnalysis.healthMetrics.teamVelocity,
+      completionPercentage: healthAnalysis.healthMetrics.completionPercentage,
+      estimatedDaysToComplete: healthAnalysis.healthMetrics.estimatedDaysToComplete
+    };
+
+    return res.status(200).json({
+      message: 'Project recommendations generated successfully',
+      projectId,
+      projectName: healthAnalysis.projectName,
+      nextSuggestedTasks,
+      projectDelayWarning: delayWarning,
+      insights,
+      generatedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Get project recommendations error:', err);
+    return res.status(500).json({ message: 'Server error generating project recommendations' });
   }
 });
 

@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import RecommendationWidgetDemo from './pages/RecommendationWidgetDemo';
 import './App.css';
 
 // Create Material-UI theme
@@ -27,6 +28,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/demo/recommendations" element={<RecommendationWidgetDemo />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
