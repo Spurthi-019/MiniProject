@@ -1,3 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 330 81% 78%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 330 81% 60%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 262 83% 58%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Sellution Design - Custom Radial Background Gradients */
+@layer utilities {
+  .bg-radial-purple {
+    background: radial-gradient(circle at center, #9933FF 0%, #0A001F 70%);
+  }
+
+  .bg-radial-purple-dark {
+    background: radial-gradient(circle at top, #7700DD 0%, #0A001F 50%, #000000 100%);
+  }
+
+  .bg-radial-sellution {
+    background: radial-gradient(ellipse at center, #9933FF 0%, #33FF99 50%, #0A001F 100%);
+  }
+
+  .bg-radial-neon {
+    background: radial-gradient(circle at bottom right, #33FF99 0%, #0A001F 60%);
+  }
+
+  .bg-radial-dual {
+    background: 
+      radial-gradient(circle at 20% 20%, rgba(153, 51, 255, 0.3) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(51, 255, 153, 0.3) 0%, transparent 50%),
+      #0A001F;
+  }
+
+  /* Neon Glow Effects */
+  .neon-text-purple {
+    color: #9933FF;
+    text-shadow: 
+      0 0 5px rgba(153, 51, 255, 0.5),
+      0 0 10px rgba(153, 51, 255, 0.4),
+      0 0 20px rgba(153, 51, 255, 0.3),
+      0 0 40px rgba(153, 51, 255, 0.2);
+  }
+
+  .neon-text-green {
+    color: #33FF99;
+    text-shadow: 
+      0 0 5px rgba(51, 255, 153, 0.5),
+      0 0 10px rgba(51, 255, 153, 0.4),
+      0 0 20px rgba(51, 255, 153, 0.3),
+      0 0 40px rgba(51, 255, 153, 0.2);
+  }
+
+  .neon-glow-purple {
+    box-shadow: 
+      0 0 5px rgba(153, 51, 255, 0.5),
+      0 0 10px rgba(153, 51, 255, 0.4),
+      0 0 20px rgba(153, 51, 255, 0.3),
+      0 0 40px rgba(153, 51, 255, 0.1);
+  }
+
+  .neon-glow-green {
+    box-shadow: 
+      0 0 5px rgba(51, 255, 153, 0.5),
+      0 0 10px rgba(51, 255, 153, 0.4),
+      0 0 20px rgba(51, 255, 153, 0.3),
+      0 0 40px rgba(51, 255, 153, 0.1);
+  }
+
+  .neon-border-purple {
+    border: 1px solid #9933FF;
+    box-shadow: 
+      0 0 5px rgba(153, 51, 255, 0.4),
+      0 0 10px rgba(153, 51, 255, 0.3),
+      inset 0 0 5px rgba(153, 51, 255, 0.2);
+  }
+
+  .neon-border-green {
+    border: 1px solid #33FF99;
+    box-shadow: 
+      0 0 5px rgba(51, 255, 153, 0.4),
+      0 0 10px rgba(51, 255, 153, 0.3),
+      inset 0 0 5px rgba(51, 255, 153, 0.2);
+  }
+
+  /* Hover Glow Effects */
+  .hover-neon-purple:hover {
+    box-shadow: 
+      0 0 10px rgba(153, 51, 255, 0.6),
+      0 0 20px rgba(153, 51, 255, 0.4),
+      0 0 30px rgba(153, 51, 255, 0.3),
+      0 0 50px rgba(153, 51, 255, 0.2);
+    transition: box-shadow 0.3s ease-in-out;
+  }
+
+  .hover-neon-green:hover {
+    box-shadow: 
+      0 0 10px rgba(51, 255, 153, 0.6),
+      0 0 20px rgba(51, 255, 153, 0.4),
+      0 0 30px rgba(51, 255, 153, 0.3),
+      0 0 50px rgba(51, 255, 153, 0.2);
+    transition: box-shadow 0.3s ease-in-out;
+  }
+
+  /* Animated Pulse Glow */
+  .pulse-neon-purple {
+    animation: pulse-purple 2s ease-in-out infinite;
+  }
+
+  .pulse-neon-green {
+    animation: pulse-green 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-purple {
+    0%, 100% {
+      box-shadow: 
+        0 0 5px rgba(153, 51, 255, 0.4),
+        0 0 10px rgba(153, 51, 255, 0.3),
+        0 0 20px rgba(153, 51, 255, 0.2);
+    }
+    50% {
+      box-shadow: 
+        0 0 10px rgba(153, 51, 255, 0.6),
+        0 0 20px rgba(153, 51, 255, 0.5),
+        0 0 30px rgba(153, 51, 255, 0.4),
+        0 0 40px rgba(153, 51, 255, 0.3);
+    }
+  }
+
+  @keyframes pulse-green {
+    0%, 100% {
+      box-shadow: 
+        0 0 5px rgba(51, 255, 153, 0.4),
+        0 0 10px rgba(51, 255, 153, 0.3),
+        0 0 20px rgba(51, 255, 153, 0.2);
+    }
+    50% {
+      box-shadow: 
+        0 0 10px rgba(51, 255, 153, 0.6),
+        0 0 20px rgba(51, 255, 153, 0.5),
+        0 0 30px rgba(51, 255, 153, 0.4),
+        0 0 40px rgba(51, 255, 153, 0.3);
+    }
+  }
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import Login from './pages/Login';
@@ -6,10 +6,16 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import MainDashboard from './pages/MainDashboard';
 import RecommendationWidgetDemo from './pages/RecommendationWidgetDemo';
+import ShadcnExample from './components/ShadcnExample';
 import theme from './theme'; // Import custom dark theme
 import './App.css';
 
 function App() {
+  // Enable dark mode by default
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+  }, []);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -20,6 +26,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/main" element={<MainDashboard />} />
           <Route path="/demo/recommendations" element={<RecommendationWidgetDemo />} />
+          <Route path="/demo/shadcn" element={<ShadcnExample />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
