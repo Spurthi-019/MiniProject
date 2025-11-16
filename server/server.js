@@ -10,6 +10,7 @@ const { Server } = require('socket.io');
 const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/project');
 const taskRoutes = require('./routes/task');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
 const server = http.createServer(app);
@@ -42,6 +43,9 @@ app.use('/api/projects', projectRoutes);
 // Mount task routes
 app.use('/api/tasks', taskRoutes);
 
+// Mount chat routes
+app.use('/api/chat', chatRoutes);
+
 // MongoDB connection (optional) - uses MONGODB_URI from server/.env if provided
 const mongoUri = process.env.MONGODB_URI || '';
 if (mongoUri) {
@@ -58,17 +62,94 @@ io.on('connection', (socket) => {
 
   // Handle user joining a project room
   socket.on('join-project', (projectId) => {
-    socket.join(`project-${projectId}`);
-    console.log(`User ${socket.id} joined project room: project-${projectId}`);
+    const room = `project-${projectId}`;
+    socket.join(room);
+    console.log(`User ${socket.id} joined project room: ${room}`);
+
+    // Notify others in the room
+    socket.to(room).emit('user-joined', {
+      socketId: socket.id,
+      timestamp: new Date()
+    });
+
+    // Emit updated online count for the room
+    try {
+      const size = io.sockets.adapter.rooms.get(room)?.size || 0;
+      io.to(room).emit('online-count', { projectId, count: size });
+    } catch (e) {
+      console.error('Failed to emit online-count on join:', e);
+    }
   });
 
   // Handle user leaving a project room
   socket.on('leave-project', (projectId) => {
-    socket.leave(`project-${projectId}`);
-    console.log(`User ${socket.id} left project room: project-${projectId}`);
+    const room = `project-${projectId}`;
+    socket.leave(room);
+    console.log(`User ${socket.id} left project room: ${room}`);
+
+    // Notify others in the room
+    socket.to(room).emit('user-left', {
+      socketId: socket.id,
+      timestamp: new Date()
+    });
+
+    // Emit updated online count for the room
+    try {
+      const size = io.sockets.adapter.rooms.get(room)?.size || 0;
+      io.to(room).emit('online-count', { projectId, count: size });
+    } catch (e) {
+      console.error('Failed to emit online-count on leave:', e);
+    }
   });
 
-  // Handle disconnect
+  // Handle new chat message
+  socket.on('send-message', (data) => {
+    const { projectId, message } = data;
+    console.log(`Message in project ${projectId} from ${socket.id}`);
+    
+    // Broadcast message to all users in the project room (including sender)
+    io.to(`project-${projectId}`).emit('new-message', message);
+  });
+
+  // Handle typing indicator
+  socket.on('typing-start', (data) => {
+    const { projectId, username } = data;
+    socket.to(`project-${projectId}`).emit('user-typing', { username });
+  });
+
+  socket.on('typing-stop', (data) => {
+    const { projectId, username } = data;
+    socket.to(`project-${projectId}`).emit('user-stopped-typing', { username });
+  });
+
+  // Handle user joining their personal notification room (for invitations)
+  socket.on('join-user-room', (userId) => {
+    const userRoom = `user-${userId}`;
+    socket.join(userRoom);
+    console.log(`User ${socket.id} joined personal room: ${userRoom}`);
+  });
+
+  // Handle disconnecting to update presence for any project rooms
+  socket.on('disconnecting', () => {
+    console.log(`❌ User disconnecting: ${socket.id}`);
+    // socket.rooms contains rooms the socket is still in at this point
+    for (const room of socket.rooms) {
+      // rooms include the socket id itself, skip that
+      if (room === socket.id) continue;
+      if (room.startsWith('project-')) {
+        try {
+          // current size includes this socket; subtract 1 for the new count
+          const prevSize = io.sockets.adapter.rooms.get(room)?.size || 0;
+          const newCount = Math.max(0, prevSize - 1);
+          const projectId = room.replace('project-', '');
+          io.to(room).emit('online-count', { projectId, count: newCount });
+        } catch (e) {
+          console.error('Failed to emit online-count on disconnecting for', room, e);
+        }
+      }
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`❌ User disconnected: ${socket.id}`);
   });

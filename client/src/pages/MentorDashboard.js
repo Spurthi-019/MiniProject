@@ -30,10 +30,18 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemAvatar,
+  Avatar,
   Tab,
   Tabs,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  TextField,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  FormLabel
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -48,23 +56,40 @@ import PendingIcon from '@mui/icons-material/Pending';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
+import ChatIcon from '@mui/icons-material/Chat';
+import GroupIcon from '@mui/icons-material/Group';
+import GroupAddIcon from '@mui/icons-material/GroupAdd';
+import EmailIcon from '@mui/icons-material/Email';
 import axios from 'axios';
 import BurndownChart from '../components/BurndownChart';
+import ChatAnalysisReport from '../components/ChatAnalysisReport';
+import ProjectChat from '../components/ProjectChat';
 
-function MentorDashboard({ user }) {
+function MentorDashboard({ user, sectionRefs }) {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectDetails, setProjectDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [taskView, setTaskView] = useState('kanban'); // 'table' or 'kanban'
+  
+  // Invitation states
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [joinTeamDialogOpen, setJoinTeamDialogOpen] = useState(false);
+  const [teamCode, setTeamCode] = useState('');
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('Team Member');
+  const [selectedProjectForInvite, setSelectedProjectForInvite] = useState(null);
 
   useEffect(() => {
     fetchProjects();
+    fetchInvitations();
   }, []);
 
   const fetchProjects = async () => {
@@ -83,6 +108,19 @@ function MentorDashboard({ user }) {
       setError(err.response?.data?.message || 'Failed to fetch projects');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInvitations = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/projects/invitations', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setPendingInvitations(response.data.invitations || []);
+    } catch (err) {
+      console.error('Error fetching invitations:', err);
     }
   };
 
@@ -123,10 +161,159 @@ function MentorDashboard({ user }) {
     setProjectDetails(null);
   };
 
+  const handleViewChatAnalysis = (project) => {
+    setSelectedProject(project);
+    setDialogOpen(true);
+    setTabValue(4); // Navigate to Chat Analysis tab
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
+  };
+
+  const handleOpenJoinTeamDialog = () => {
+    setJoinTeamDialogOpen(true);
+    setTeamCode('');
+    setError('');
+    setSuccess('');
+  };
+
+  const handleCloseJoinTeamDialog = () => {
+    setJoinTeamDialogOpen(false);
+    setTeamCode('');
+  };
+
+  const handleJoinTeam = async () => {
+    try {
+      if (!teamCode.trim()) {
+        setError('Please enter a team code');
+        return;
+      }
+
+      setError('');
+      setSuccess('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5000/api/projects/join',
+        { teamCode: teamCode.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(`Successfully joined team: ${response.data.project.name}`);
+      setJoinTeamDialogOpen(false);
+      setTeamCode('');
+      
+      fetchProjects();
+      
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      console.error('Error joining team:', err);
+      setError(err.response?.data?.message || 'Failed to join team');
+    }
+  };
+
+  const handleOpenInviteDialog = (project) => {
+    setSelectedProjectForInvite(project);
+    setInviteDialogOpen(true);
+    setInviteEmail('');
+    setInviteRole('Team Member');
+    setError('');
+    setSuccess('');
+  };
+
+  const handleCloseInviteDialog = () => {
+    setInviteDialogOpen(false);
+    setInviteEmail('');
+    setInviteRole('Team Member');
+    setSelectedProjectForInvite(null);
+  };
+
+  const handleSendInvite = async () => {
+    try {
+      if (!inviteEmail.trim()) {
+        setError('Please enter an email address');
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(inviteEmail.trim())) {
+        setError('Please enter a valid email address');
+        return;
+      }
+
+      setError('');
+      setSuccess('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5000/api/projects/invite',
+        {
+          projectId: selectedProjectForInvite._id,
+          email: inviteEmail.trim(),
+          role: inviteRole
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(`Invitation sent to ${inviteEmail} as ${inviteRole}`);
+      setInviteDialogOpen(false);
+      setInviteEmail('');
+      setInviteRole('Team Member');
+      setSelectedProjectForInvite(null);
+      
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      console.error('Error sending invitation:', err);
+      setError(err.response?.data?.message || 'Failed to send invitation');
+    }
+  };
+
+  const handleAcceptInvitation = async (invitationId) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `http://localhost:5000/api/projects/invitations/${invitationId}/accept`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(response.data.message);
+      fetchInvitations();
+      fetchProjects();
+      
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      console.error('Error accepting invitation:', err);
+      setError(err.response?.data?.message || 'Failed to accept invitation');
+    }
+  };
+
+  const handleDeclineInvitation = async (invitationId) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `http://localhost:5000/api/projects/invitations/${invitationId}/decline`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(response.data.message);
+      fetchInvitations();
+      
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error declining invitation:', err);
+      setError(err.response?.data?.message || 'Failed to decline invitation');
+    }
   };
 
   const getStatusColor = (status) => {
@@ -176,19 +363,22 @@ function MentorDashboard({ user }) {
     return (
       <Card 
         sx={{ 
-          mb: 2, 
-          borderLeft: 4, 
+          mb: 1.5, 
+          borderLeft: 3, 
           borderColor: getStatusColor(task.status) + '.main',
-          transition: 'all 0.3s ease',
+          transition: 'all 0.2s ease',
+          borderRadius: 1.5,
+          bgcolor: 'white',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           '&:hover': {
-            transform: 'translateY(-4px)',
-            boxShadow: 6,
+            transform: 'translateY(-2px)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
           }
         }}
       >
-        <CardContent sx={{ pb: 1 }}>
+        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
-            <Typography variant="subtitle1" component="div" fontWeight="600">
+            <Typography variant="body2" component="div" fontWeight="600" sx={{ flex: 1, pr: 1 }}>
               {task.title}
             </Typography>
             <Chip
@@ -196,18 +386,19 @@ function MentorDashboard({ user }) {
               label={task.status}
               color={getStatusColor(task.status)}
               size="small"
+              sx={{ height: 22, fontSize: '0.7rem' }}
             />
           </Box>
           
           {task.description && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block', lineHeight: 1.4 }}>
               {task.description}
             </Typography>
           )}
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Typography variant="caption" color="text.secondary" display="flex" alignItems="center">
-              <Box component="span" sx={{ fontWeight: 600, mr: 0.5 }}>Assigned to:</Box>
+              <Box component="span" sx={{ fontWeight: 600, mr: 0.5 }}>Assigned:</Box>
               {task.assignedTo?.username || 'Unassigned'}
             </Typography>
             
@@ -217,9 +408,9 @@ function MentorDashboard({ user }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  px: 1,
-                  py: 0.5,
-                  borderRadius: 1,
+                  px: 0.75,
+                  py: 0.25,
+                  borderRadius: 0.75,
                   bgcolor: urgency.bgColor,
                   width: 'fit-content'
                 }}
@@ -236,85 +427,379 @@ function MentorDashboard({ user }) {
   };
 
   return (
-    <Box sx={{ flexGrow: 1, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Container maxWidth="xl" sx={{ mt: 3, mb: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Paper elevation={2} sx={{ p: 2.5, mb: 2 }}>
-          <Typography variant="h5" gutterBottom>
-            Welcome, {user.username}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Role: {user.role}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Email: {user.email}
-          </Typography>
-        </Paper>
+    <Box sx={{ 
+      flexGrow: 1, 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%)',
+      py: 2
+    }}>
+      <Container 
+        maxWidth="lg" 
+        sx={{ 
+          px: { xs: 2, sm: 3 }
+        }}
+      >
+        {/* Welcome Header - Compact */}
+        <div ref={sectionRefs?.dashboardRef}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 2,
+              mb: 2,
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              boxShadow: '0 4px 20px rgba(102, 126, 234, 0.2)'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.3)', width: 48, height: 48 }}>
+                {user.username?.charAt(0).toUpperCase()}
+              </Avatar>
+              <Box>
+                <Typography variant="h6" fontWeight="600" sx={{ lineHeight: 1.2 }}>
+                  Welcome back, {user.username}!
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                  <Chip 
+                    label={user.role} 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.2)', 
+                      color: 'white',
+                      height: 20,
+                      fontSize: '0.7rem'
+                    }} 
+                  />
+                  <Typography variant="caption" sx={{ opacity: 0.9, lineHeight: '20px' }}>
+                    {user.email}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
             <CircularProgress />
           </Box>
         ) : (
-          <Paper elevation={2} sx={{ p: 2.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <PeopleIcon sx={{ mr: 1, fontSize: 30 }} color="secondary" />
-              <Typography variant="h5">Projects I'm Mentoring</Typography>
-              <Chip label={projects.length} color="secondary" sx={{ ml: 2 }} />
-            </Box>
+          <>
+            {/* Projects Section - Compact */}
+            <div ref={sectionRefs?.projectsRef}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 2,
+                  mb: 2,
+                  borderRadius: 2,
+                  bgcolor: 'white',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PeopleIcon sx={{ fontSize: 24 }} color="secondary" />
+                    <Typography variant="h6" fontWeight="600">
+                      Projects I'm Mentoring
+                    </Typography>
+                  </Box>
+                  <Chip 
+                    label={projects.length} 
+                    color="secondary" 
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Box>
 
-            {projects.length === 0 ? (
-              <Alert severity="info">
-                You are not mentoring any projects yet. Join a project using a team code!
-              </Alert>
-            ) : (
-              <Grid container spacing={2}>
-                {projects.map((project) => (
-                  <Grid item xs={12} md={6} key={project._id}>
-                    <Card elevation={3}>
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>
-                          {project.name}
-                        </Typography>
-                        <Chip 
-                          label={`Code: ${project.teamCode}`} 
-                          size="small" 
-                          color="secondary"
-                          sx={{ mb: 2 }}
-                        />
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          {project.description || 'No description'}
-                        </Typography>
-                        <Divider sx={{ my: 1 }} />
-                        <Typography variant="caption" display="block" color="text.secondary">
-                          Team Lead: {project.teamLead?.username || 'N/A'}
-                        </Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
-                          Members: {project.members?.length || 0} | Mentors: {project.mentors?.length || 0}
-                        </Typography>
-                      </CardContent>
-                      <CardActions>
-                        <Button 
-                          size="small" 
-                          variant="contained" 
-                          color="secondary"
-                          onClick={() => handleViewProject(project)}
-                          startIcon={<BarChartIcon />}
+                {projects.length === 0 ? (
+                  <Alert severity="info" sx={{ borderRadius: 2 }}>
+                    You are not mentoring any projects yet. Join a project using a team code!
+                  </Alert>
+                ) : (
+                  <Grid container spacing={2}>
+                    {projects.map((project) => (
+                      <Grid item xs={12} md={6} key={project._id}>
+                        <Card 
+                          elevation={0}
+                          sx={{ 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'grey.200',
+                            transition: 'all 0.3s',
+                            '&:hover': {
+                              borderColor: 'secondary.main',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                              transform: 'translateY(-2px)'
+                            }
+                          }}
                         >
-                          View Details & Metrics
-                        </Button>
-                      </CardActions>
-                    </Card>
+                          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', mb: 1.5 }}>
+                              <Typography variant="h6" fontWeight="600" sx={{ fontSize: '1.1rem' }}>
+                                {project.name}
+                              </Typography>
+                              <Chip 
+                                label={project.teamCode} 
+                                size="small" 
+                                color="secondary"
+                                sx={{ height: 22, fontSize: '0.7rem' }}
+                              />
+                            </Box>
+                            
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, lineHeight: 1.5 }}>
+                              {project.description || 'No description'}
+                            </Typography>
+                            
+                            <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                              <Chip 
+                                icon={<GroupIcon />}
+                                label={`${project.members?.length || 0} members`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 24, fontSize: '0.75rem' }}
+                              />
+                              <Chip 
+                                icon={<SchoolIcon />}
+                                label={`${project.mentors?.length || 0} mentors`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 24, fontSize: '0.75rem' }}
+                              />
+                            </Box>
+
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+                              <Button 
+                                size="small" 
+                                variant="contained" 
+                                color="secondary"
+                                fullWidth
+                                onClick={() => handleViewProject(project)}
+                                startIcon={<BarChartIcon />}
+                                sx={{ textTransform: 'none', fontWeight: 600 }}
+                              >
+                                View Details
+                              </Button>
+                              <Button 
+                                size="small" 
+                                variant="outlined" 
+                                color="primary"
+                                fullWidth
+                                onClick={() => handleOpenInviteDialog(project)}
+                                startIcon={<EmailIcon />}
+                                sx={{ textTransform: 'none', fontWeight: 600 }}
+                              >
+                                Invite
+                              </Button>
+                            </Box>
+                            
+                            <Button 
+                              size="small" 
+                              variant="outlined" 
+                              color="info"
+                              fullWidth
+                              onClick={() => handleViewChatAnalysis(project)}
+                              startIcon={<ChatIcon />}
+                              sx={{ mt: 1, textTransform: 'none', fontWeight: 600 }}
+                            >
+                              Check Chat Health
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
                   </Grid>
-                ))}
-              </Grid>
+                )}
+              </Paper>
+            </div>
+
+            {/* Team Members Section - Compact */}
+            {projects.length > 0 && (
+              <div ref={sectionRefs?.teamRef}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 2,
+                    bgcolor: 'white',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <PeopleIcon sx={{ fontSize: 24 }} color="primary" />
+                      <Typography variant="h6" fontWeight="600">
+                        Team Members
+                      </Typography>
+                    </Box>
+                    <Chip 
+                      label="By Project" 
+                      color="primary" 
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Box>
+
+                  <Grid container spacing={2}>
+                    {projects.map((project) => (
+                      <Grid item xs={12} md={6} key={project._id}>
+                        <Card 
+                          elevation={0}
+                          sx={{ 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'grey.200',
+                            bgcolor: 'grey.50'
+                          }}
+                        >
+                          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                              <Typography variant="subtitle1" fontWeight="600" color="secondary">
+                                {project.name}
+                              </Typography>
+                              <Chip 
+                                label={project.teamCode} 
+                                size="small" 
+                                color="secondary"
+                                sx={{ height: 22, fontSize: '0.7rem' }}
+                              />
+                            </Box>
+
+                            {/* Team Lead */}
+                            {project.teamLead && (
+                              <Box sx={{ mb: 1.5 }}>
+                                <Typography variant="caption" color="text.secondary" fontWeight="600" sx={{ mb: 0.5, display: 'block' }}>
+                                  TEAM LEAD
+                                </Typography>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: 1.5, 
+                                  p: 1.5, 
+                                  bgcolor: 'primary.light', 
+                                  borderRadius: 1.5,
+                                  border: '1px solid',
+                                  borderColor: 'primary.main'
+                                }}>
+                                  <Avatar sx={{ bgcolor: 'primary.main', width: 36, height: 36 }}>
+                                    {project.teamLead.username?.charAt(0).toUpperCase()}
+                                  </Avatar>
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography variant="body2" fontWeight="600" noWrap>
+                                      {project.teamLead.username}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" noWrap>
+                                      {project.teamLead.email}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            )}
+
+                            {/* Team Members */}
+                            {project.members && project.members.length > 0 && (
+                              <Box sx={{ mb: 1.5 }}>
+                                <Typography variant="caption" color="text.secondary" fontWeight="600" sx={{ mb: 0.5, display: 'block' }}>
+                                  MEMBERS ({project.members.length})
+                                </Typography>
+                                <List dense disablePadding sx={{ bgcolor: 'white', borderRadius: 1.5, border: '1px solid', borderColor: 'grey.200' }}>
+                                  {project.members.map((member, index) => (
+                                    <ListItem 
+                                      key={member._id} 
+                                      sx={{ 
+                                        px: 1.5,
+                                        py: 1,
+                                        borderBottom: index < project.members.length - 1 ? '1px solid' : 'none',
+                                        borderColor: 'grey.100'
+                                      }}
+                                    >
+                                      <ListItemAvatar sx={{ minWidth: 44 }}>
+                                        <Avatar sx={{ bgcolor: 'success.main', width: 32, height: 32, fontSize: '0.9rem' }}>
+                                          {member.username?.charAt(0).toUpperCase()}
+                                        </Avatar>
+                                      </ListItemAvatar>
+                                      <ListItemText
+                                        primary={member.username}
+                                        secondary={member.email}
+                                        primaryTypographyProps={{ fontWeight: 500, fontSize: '0.875rem' }}
+                                        secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                                      />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
+
+                            {/* Other Mentors */}
+                            {project.mentors && project.mentors.length > 0 && (
+                              <Box sx={{ mb: 1 }}>
+                                <Typography variant="caption" color="text.secondary" fontWeight="600" sx={{ mb: 0.5, display: 'block' }}>
+                                  MENTORS ({project.mentors.length})
+                                </Typography>
+                                <List dense disablePadding sx={{ bgcolor: 'white', borderRadius: 1.5, border: '1px solid', borderColor: 'grey.200' }}>
+                                  {project.mentors.map((mentor, index) => (
+                                    <ListItem 
+                                      key={mentor._id} 
+                                      sx={{ 
+                                        px: 1.5,
+                                        py: 1,
+                                        borderBottom: index < project.mentors.length - 1 ? '1px solid' : 'none',
+                                        borderColor: 'grey.100'
+                                      }}
+                                    >
+                                      <ListItemAvatar sx={{ minWidth: 44 }}>
+                                        <Avatar sx={{ bgcolor: 'secondary.main', width: 32, height: 32, fontSize: '0.9rem' }}>
+                                          {mentor.username?.charAt(0).toUpperCase()}
+                                        </Avatar>
+                                      </ListItemAvatar>
+                                      <ListItemText
+                                        primary={mentor.username}
+                                        secondary={mentor.email}
+                                        primaryTypographyProps={{ fontWeight: 500, fontSize: '0.875rem' }}
+                                        secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                                      />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
+
+                            {/* Summary Stats */}
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+                              <Chip 
+                                icon={<GroupIcon />}
+                                label={`${(project.members?.length || 0) + 1} Total`} 
+                                size="small" 
+                                color="success"
+                                variant="outlined"
+                                sx={{ height: 24, fontSize: '0.7rem' }}
+                              />
+                              <Chip 
+                                icon={<SchoolIcon />}
+                                label={`${project.mentors?.length || 0} Mentors`} 
+                                size="small" 
+                                color="secondary"
+                                variant="outlined"
+                                sx={{ height: 24, fontSize: '0.7rem' }}
+                              />
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Paper>
+              </div>
             )}
-          </Paper>
+          </>
         )}
 
         {/* Project Details Dialog */}
@@ -323,61 +808,99 @@ function MentorDashboard({ user }) {
           onClose={handleCloseDialog}
           maxWidth="lg"
           fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+            }
+          }}
         >
-          <DialogTitle>
+          <DialogTitle sx={{ pb: 1.5 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
+              <Typography variant="h6" fontWeight="600">
                 {selectedProject?.name}
               </Typography>
-              <IconButton onClick={handleCloseDialog}>
+              <IconButton onClick={handleCloseDialog} size="small">
                 <CloseIcon />
               </IconButton>
             </Box>
           </DialogTitle>
-          <DialogContent dividers>
+          <DialogContent dividers sx={{ p: 2 }}>
             {detailsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
                 <CircularProgress />
               </Box>
             ) : projectDetails ? (
               <>
                 {/* Tabs for Tasks and Metrics */}
-                <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 2 }}>
-                  <Tab label="Tasks" icon={<AssignmentIcon />} iconPosition="start" />
-                  <Tab label="Contribution Metrics" icon={<BarChartIcon />} iconPosition="start" />
-                  <Tab label="Burndown Chart" icon={<TrendingDownIcon />} iconPosition="start" />
+                <Tabs 
+                  value={tabValue} 
+                  onChange={(e, newValue) => setTabValue(newValue)} 
+                  sx={{ 
+                    mb: 2,
+                    minHeight: 42,
+                    '& .MuiTab-root': {
+                      minHeight: 42,
+                      textTransform: 'none',
+                      fontWeight: 600
+                    }
+                  }}
+                >
+                  <Tab label="Tasks" icon={<AssignmentIcon fontSize="small" />} iconPosition="start" />
+                  <Tab label="Metrics" icon={<BarChartIcon fontSize="small" />} iconPosition="start" />
+                  <Tab label="Burndown" icon={<TrendingDownIcon fontSize="small" />} iconPosition="start" />
+                  <Tab label="Chat" icon={<ChatIcon fontSize="small" />} iconPosition="start" />
+                  <Tab label="Analysis" icon={<PeopleIcon fontSize="small" />} iconPosition="start" />
                 </Tabs>
 
                 {/* Tab 0: Tasks List */}
                 {tabValue === 0 && (
                   <Box>
-                    <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                    <Paper 
+                      elevation={0}
+                      sx={{ 
+                        p: 2, 
+                        mb: 2, 
+                        borderRadius: 2,
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white'
+                      }}
+                    >
                       <Grid container spacing={2}>
-                        <Grid item xs={3}>
-                          <Typography variant="caption">Total Tasks</Typography>
-                          <Typography variant="h6">{projectDetails.metrics.projectStats.totalTasks}</Typography>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ opacity: 0.9 }}>Total Tasks</Typography>
+                          <Typography variant="h5" fontWeight="600">{projectDetails.metrics.projectStats.totalTasks}</Typography>
                         </Grid>
-                        <Grid item xs={3}>
-                          <Typography variant="caption">To Do</Typography>
-                          <Typography variant="h6">{projectDetails.metrics.projectStats.todoTasks}</Typography>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ opacity: 0.9 }}>To Do</Typography>
+                          <Typography variant="h5" fontWeight="600">{projectDetails.metrics.projectStats.todoTasks}</Typography>
                         </Grid>
-                        <Grid item xs={3}>
-                          <Typography variant="caption">In Progress</Typography>
-                          <Typography variant="h6">{projectDetails.metrics.projectStats.inProgressTasks}</Typography>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ opacity: 0.9 }}>In Progress</Typography>
+                          <Typography variant="h5" fontWeight="600">{projectDetails.metrics.projectStats.inProgressTasks}</Typography>
                         </Grid>
-                        <Grid item xs={3}>
-                          <Typography variant="caption">Completed</Typography>
-                          <Typography variant="h6">{projectDetails.metrics.projectStats.completedTasks}</Typography>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ opacity: 0.9 }}>Completed</Typography>
+                          <Typography variant="h5" fontWeight="600">{projectDetails.metrics.projectStats.completedTasks}</Typography>
                         </Grid>
                       </Grid>
                       <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption">Overall Completion Rate</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="caption" sx={{ opacity: 0.9 }}>Completion Rate</Typography>
+                          <Typography variant="caption" fontWeight="600">{projectDetails.metrics.projectStats.completionRate}%</Typography>
+                        </Box>
                         <LinearProgress 
                           variant="determinate" 
                           value={projectDetails.metrics.projectStats.completionRate} 
-                          sx={{ height: 10, borderRadius: 5, mt: 1 }}
+                          sx={{ 
+                            height: 8, 
+                            borderRadius: 4,
+                            bgcolor: 'rgba(255,255,255,0.3)',
+                            '& .MuiLinearProgress-bar': {
+                              bgcolor: 'white'
+                            }
+                          }}
                         />
-                        <Typography variant="caption">{projectDetails.metrics.projectStats.completionRate}%</Typography>
                       </Box>
                     </Paper>
 
@@ -388,6 +911,13 @@ function MentorDashboard({ user }) {
                         exclusive
                         onChange={(e, newView) => newView && setTaskView(newView)}
                         size="small"
+                        sx={{
+                          '& .MuiToggleButton-root': {
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            px: 2
+                          }
+                        }}
                       >
                         <ToggleButton value="kanban">
                           <ViewKanbanIcon sx={{ mr: 0.5 }} fontSize="small" />
@@ -401,26 +931,26 @@ function MentorDashboard({ user }) {
                     </Box>
 
                     {projectDetails.tasks.length === 0 ? (
-                      <Alert severity="info">No tasks found for this project.</Alert>
+                      <Alert severity="info" sx={{ borderRadius: 2 }}>No tasks found for this project.</Alert>
                     ) : taskView === 'kanban' ? (
                       // Kanban View
                       <Grid container spacing={2}>
                         {/* To Do Column */}
                         <Grid item xs={12} md={4}>
                           <Paper 
-                            elevation={3} 
+                            elevation={0}
                             sx={{ 
-                              p: 2, 
+                              p: 1.5, 
                               bgcolor: 'warning.main', 
                               color: 'warning.contrastText',
-                              borderRadius: 2,
-                              mb: 1
+                              borderRadius: 1.5,
+                              mb: 1.5
                             }}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <PendingIcon sx={{ mr: 1, fontSize: 28 }} />
-                                <Typography variant="h6" fontWeight="bold">To Do</Typography>
+                                <PendingIcon sx={{ mr: 0.75, fontSize: 20 }} />
+                                <Typography variant="body2" fontWeight="700">To Do</Typography>
                               </Box>
                               <Chip 
                                 label={projectDetails.tasks.filter(t => t.status === 'To Do').length} 
@@ -428,26 +958,28 @@ function MentorDashboard({ user }) {
                                 sx={{ 
                                   bgcolor: 'rgba(255, 255, 255, 0.9)', 
                                   color: 'warning.main',
-                                  fontWeight: 'bold'
+                                  fontWeight: 'bold',
+                                  height: 22,
+                                  fontSize: '0.75rem'
                                 }} 
                               />
                             </Box>
                           </Paper>
-                          <Box sx={{ mt: 2, minHeight: 300 }}>
+                          <Box sx={{ minHeight: 300 }}>
                             {projectDetails.tasks.filter(t => t.status === 'To Do').length === 0 ? (
                               <Paper 
                                 elevation={0} 
                                 sx={{ 
-                                  p: 3, 
+                                  p: 2, 
                                   textAlign: 'center', 
                                   bgcolor: 'grey.50',
                                   border: '2px dashed',
                                   borderColor: 'grey.300',
-                                  borderRadius: 2
+                                  borderRadius: 1.5
                                 }}
                               >
-                                <Typography variant="body2" color="text.secondary">
-                                  No tasks in To Do
+                                <Typography variant="caption" color="text.secondary">
+                                  No tasks
                                 </Typography>
                               </Paper>
                             ) : (
@@ -461,19 +993,19 @@ function MentorDashboard({ user }) {
                         {/* In Progress Column */}
                         <Grid item xs={12} md={4}>
                           <Paper 
-                            elevation={3} 
+                            elevation={0}
                             sx={{ 
-                              p: 2, 
+                              p: 1.5, 
                               bgcolor: 'info.main', 
                               color: 'info.contrastText',
-                              borderRadius: 2,
-                              mb: 1
+                              borderRadius: 1.5,
+                              mb: 1.5
                             }}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <PlayArrowIcon sx={{ mr: 1, fontSize: 28 }} />
-                                <Typography variant="h6" fontWeight="bold">In Progress</Typography>
+                                <PlayArrowIcon sx={{ mr: 0.75, fontSize: 20 }} />
+                                <Typography variant="body2" fontWeight="700">In Progress</Typography>
                               </Box>
                               <Chip 
                                 label={projectDetails.tasks.filter(t => t.status === 'In Progress').length} 
@@ -481,26 +1013,28 @@ function MentorDashboard({ user }) {
                                 sx={{ 
                                   bgcolor: 'rgba(255, 255, 255, 0.9)', 
                                   color: 'info.main',
-                                  fontWeight: 'bold'
+                                  fontWeight: 'bold',
+                                  height: 22,
+                                  fontSize: '0.75rem'
                                 }} 
                               />
                             </Box>
                           </Paper>
-                          <Box sx={{ mt: 2, minHeight: 300 }}>
+                          <Box sx={{ minHeight: 300 }}>
                             {projectDetails.tasks.filter(t => t.status === 'In Progress').length === 0 ? (
                               <Paper 
                                 elevation={0} 
                                 sx={{ 
-                                  p: 3, 
+                                  p: 2, 
                                   textAlign: 'center', 
                                   bgcolor: 'grey.50',
                                   border: '2px dashed',
                                   borderColor: 'grey.300',
-                                  borderRadius: 2
+                                  borderRadius: 1.5
                                 }}
                               >
-                                <Typography variant="body2" color="text.secondary">
-                                  No tasks in progress
+                                <Typography variant="caption" color="text.secondary">
+                                  No tasks
                                 </Typography>
                               </Paper>
                             ) : (
@@ -514,19 +1048,19 @@ function MentorDashboard({ user }) {
                         {/* Done Column */}
                         <Grid item xs={12} md={4}>
                           <Paper 
-                            elevation={3} 
+                            elevation={0}
                             sx={{ 
-                              p: 2, 
+                              p: 1.5, 
                               bgcolor: 'success.main', 
                               color: 'success.contrastText',
-                              borderRadius: 2,
-                              mb: 1
+                              borderRadius: 1.5,
+                              mb: 1.5
                             }}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <CheckCircleIcon sx={{ mr: 1, fontSize: 28 }} />
-                                <Typography variant="h6" fontWeight="bold">Done</Typography>
+                                <CheckCircleIcon sx={{ mr: 0.75, fontSize: 20 }} />
+                                <Typography variant="body2" fontWeight="700">Done</Typography>
                               </Box>
                               <Chip 
                                 label={projectDetails.tasks.filter(t => t.status === 'Done').length} 
@@ -534,26 +1068,28 @@ function MentorDashboard({ user }) {
                                 sx={{ 
                                   bgcolor: 'rgba(255, 255, 255, 0.9)', 
                                   color: 'success.main',
-                                  fontWeight: 'bold'
+                                  fontWeight: 'bold',
+                                  height: 22,
+                                  fontSize: '0.75rem'
                                 }} 
                               />
                             </Box>
                           </Paper>
-                          <Box sx={{ mt: 2, minHeight: 300 }}>
+                          <Box sx={{ minHeight: 300 }}>
                             {projectDetails.tasks.filter(t => t.status === 'Done').length === 0 ? (
                               <Paper 
                                 elevation={0} 
                                 sx={{ 
-                                  p: 3, 
+                                  p: 2, 
                                   textAlign: 'center', 
                                   bgcolor: 'grey.50',
                                   border: '2px dashed',
                                   borderColor: 'grey.300',
-                                  borderRadius: 2
+                                  borderRadius: 1.5
                                 }}
                               >
-                                <Typography variant="body2" color="text.secondary">
-                                  No completed tasks
+                                <Typography variant="caption" color="text.secondary">
+                                  No tasks
                                 </Typography>
                               </Paper>
                             ) : (
@@ -715,12 +1251,150 @@ function MentorDashboard({ user }) {
                     <BurndownChart projectId={selectedProject?._id} />
                   </Box>
                 )}
+
+                {/* Tab 3: Team Chat */}
+                {tabValue === 3 && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Team Chat
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Real-time messaging with your project team
+                    </Typography>
+                    <ProjectChat 
+                      projectId={selectedProject?._id} 
+                      projectName={selectedProject?.name}
+                      currentUser={user}
+                    />
+                  </Box>
+                )}
+
+                {/* Tab 4: Chat Analysis */}
+                {tabValue === 4 && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Group Chat Interaction Analysis
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Monitor team communication patterns and identify engagement trends
+                    </Typography>
+                    <ChatAnalysisReport projectId={selectedProject?._id} />
+                  </Box>
+                )}
               </>
             ) : null}
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseDialog} variant="contained">
               Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Invite Team Member/Mentor Dialog */}
+        <Dialog
+          open={inviteDialogOpen}
+          onClose={handleCloseInviteDialog}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <EmailIcon sx={{ mr: 1 }} color="primary" />
+                <Typography variant="h6">
+                  Invite to Team
+                </Typography>
+              </Box>
+              <IconButton onClick={handleCloseInviteDialog}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            {selectedProjectForInvite && (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: 'primary.light', borderRadius: 1 }}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Inviting to project:
+                </Typography>
+                <Typography variant="body1" fontWeight="600" color="primary">
+                  {selectedProjectForInvite.name}
+                </Typography>
+                <Chip 
+                  label={`Code: ${selectedProjectForInvite.teamCode}`} 
+                  size="small" 
+                  color="primary"
+                  sx={{ mt: 0.5 }}
+                />
+              </Box>
+            )}
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Send an email invitation to join your team as a member or mentor.
+            </Typography>
+
+            <TextField
+              autoFocus
+              label="Email Address"
+              fullWidth
+              variant="outlined"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="colleague@example.com"
+              sx={{ mb: 2 }}
+              helperText="Enter the email address of the person you want to invite"
+            />
+
+            <FormControl component="fieldset" sx={{ mb: 2 }}>
+              <FormLabel component="legend">Role</FormLabel>
+              <RadioGroup
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                <FormControlLabel 
+                  value="Team Member" 
+                  control={<Radio />} 
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight="600">Team Member</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Can view tasks, chat with team, and update their own tasks
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel 
+                  value="Mentor" 
+                  control={<Radio />} 
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight="600">Mentor</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Can guide the team, view metrics, and monitor progress
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+
+            <Alert severity="info" sx={{ mt: 2 }}>
+              The invited person will receive a notification when they log in to their dashboard.
+            </Alert>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseInviteDialog}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendInvite} 
+              variant="contained" 
+              color="primary"
+              startIcon={<EmailIcon />}
+              disabled={!inviteEmail.trim()}
+            >
+              Send Invitation
             </Button>
           </DialogActions>
         </Dialog>

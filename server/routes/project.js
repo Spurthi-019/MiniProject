@@ -3,7 +3,9 @@ const router = express.Router();
 const { authMiddleware, authorize } = require('../authMiddleware');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const Invitation = require('../models/Invitation');
 const { analyzeProjectHealth, getPrioritizedTasks } = require('../utils/aiAnalysis');
+const { analyzeChatActivity, getChatActivityTrends } = require('../utils/chatAnalysis');
 
 /**
  * Generate a unique 6-digit teamCode
@@ -128,6 +130,277 @@ router.post('/join', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Join project error:', err);
     return res.status(500).json({ message: 'Server error joining project' });
+  }
+});
+
+// POST /api/projects/invite - Send invitation to join a project
+// Body: { projectId, email, role }
+router.post('/invite', authMiddleware, async (req, res) => {
+  try {
+    const { projectId, email, role } = req.body;
+
+    if (!projectId || !email || !role) {
+      return res.status(400).json({ message: 'Project ID, email, and role are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Validate role
+    if (!['Team Member', 'Mentor'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role. Must be "Team Member" or "Mentor"' });
+    }
+
+    // Find the project
+    const project = await Project.findById(projectId)
+      .populate('teamLead', 'username email')
+      .populate('members', 'email')
+      .populate('mentors', 'email');
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    const userId = req.user.id;
+
+    // Check if the user has permission to invite (team lead or member of the project)
+    const isTeamLead = project.teamLead._id.toString() === userId;
+    const isMember = project.members.some(m => m._id.toString() === userId);
+    const isMentor = project.mentors.some(m => m._id.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have permission to invite to this project' });
+    }
+
+    // Check if the person is already in the project
+    const emailLower = email.toLowerCase().trim();
+    
+    if (project.teamLead.email.toLowerCase() === emailLower) {
+      return res.status(400).json({ message: 'This person is already the team lead of this project' });
+    }
+
+    const isAlreadyMember = project.members.some(m => m.email.toLowerCase() === emailLower);
+    const isAlreadyMentor = project.mentors.some(m => m.email.toLowerCase() === emailLower);
+
+    if (isAlreadyMember || isAlreadyMentor) {
+      return res.status(400).json({ message: 'This person is already part of the project' });
+    }
+
+    // Check if there's already a pending invitation
+    const existingInvitation = await Invitation.findOne({
+      project: projectId,
+      email: emailLower,
+      status: 'pending'
+    });
+
+    if (existingInvitation) {
+      return res.status(400).json({ message: 'An invitation has already been sent to this email' });
+    }
+
+    // Create the invitation
+    const invitation = new Invitation({
+      project: projectId,
+      email: emailLower,
+      role: role,
+      invitedBy: userId,
+      status: 'pending'
+    });
+
+    await invitation.save();
+
+    // Populate the invitation for the response
+    await invitation.populate('project', 'name teamCode');
+    await invitation.populate('invitedBy', 'username email');
+
+    console.log('='.repeat(60));
+    console.log('INVITATION CREATED');
+    console.log('='.repeat(60));
+    console.log(`To: ${email}`);
+    console.log(`Project: ${project.name}`);
+    console.log(`Role: ${role}`);
+    console.log(`Team Code: ${project.teamCode}`);
+    console.log(`Invited by: ${req.user.username} (${req.user.email})`);
+    console.log(`Invitation ID: ${invitation._id}`);
+    console.log('='.repeat(60));
+
+    // Try to find the invited user and notify them via Socket.IO
+    try {
+      const User = require('../models/User');
+      const invitedUser = await User.findOne({ email: emailLower });
+      
+      if (invitedUser) {
+        const io = req.app.get('io');
+        if (io) {
+          // Emit to the invited user's personal room
+          io.to(`user-${invitedUser._id}`).emit('new-invitation', {
+            invitation: {
+              _id: invitation._id,
+              project: {
+                _id: project._id,
+                name: project.name,
+                teamCode: project.teamCode,
+                description: project.description
+              },
+              role: invitation.role,
+              invitedBy: {
+                username: req.user.username,
+                email: req.user.email
+              },
+              createdAt: invitation.createdAt
+            }
+          });
+          console.log(`🔔 Real-time notification sent to user ${invitedUser._id}`);
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Failed to send real-time notification:', notifyErr);
+      // Don't fail the request if notification fails
+    }
+
+    return res.status(201).json({
+      message: `Invitation sent successfully to ${email}`,
+      invitation: {
+        _id: invitation._id,
+        email: invitation.email,
+        role: invitation.role,
+        projectName: project.name,
+        teamCode: project.teamCode,
+        invitedBy: invitation.invitedBy
+      }
+    });
+  } catch (err) {
+    console.error('Send invitation error:', err);
+    return res.status(500).json({ message: 'Server error sending invitation' });
+  }
+});
+
+// GET /api/projects/invitations - Get pending invitations for the logged-in user
+router.get('/invitations', authMiddleware, async (req, res) => {
+  try {
+    const userEmail = req.user.email.toLowerCase();
+
+    const invitations = await Invitation.find({
+      email: userEmail,
+      status: 'pending'
+    })
+      .populate('project', 'name teamCode description')
+      .populate('invitedBy', 'username email')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      invitations
+    });
+  } catch (err) {
+    console.error('Get invitations error:', err);
+    return res.status(500).json({ message: 'Server error fetching invitations' });
+  }
+});
+
+// POST /api/projects/invitations/:invitationId/accept - Accept an invitation
+router.post('/invitations/:invitationId/accept', authMiddleware, async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const userEmail = req.user.email.toLowerCase();
+    const userId = req.user.id;
+
+    const invitation = await Invitation.findById(invitationId)
+      .populate('project', 'name teamCode');
+
+    if (!invitation) {
+      return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    // Verify the invitation is for this user
+    if (invitation.email.toLowerCase() !== userEmail) {
+      return res.status(403).json({ message: 'This invitation is not for you' });
+    }
+
+    // Check if already accepted or declined
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ message: `Invitation already ${invitation.status}` });
+    }
+
+    // Get the project
+    const project = await Project.findById(invitation.project._id);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user is already in the project
+    if (project.teamLead.toString() === userId) {
+      return res.status(400).json({ message: 'You are already the team lead of this project' });
+    }
+
+    if (project.members.includes(userId)) {
+      return res.status(400).json({ message: 'You are already a member of this project' });
+    }
+
+    if (project.mentors.includes(userId)) {
+      return res.status(400).json({ message: 'You are already a mentor of this project' });
+    }
+
+    // Add user to the project based on invited role
+    if (invitation.role === 'Mentor') {
+      project.mentors.push(userId);
+    } else {
+      project.members.push(userId);
+    }
+
+    await project.save();
+
+    // Update invitation status
+    invitation.status = 'accepted';
+    await invitation.save();
+
+    // Populate project details for response
+    await project.populate('teamLead members mentors', 'username email role');
+
+    return res.status(200).json({
+      message: `Successfully joined ${project.name} as ${invitation.role}`,
+      project
+    });
+  } catch (err) {
+    console.error('Accept invitation error:', err);
+    return res.status(500).json({ message: 'Server error accepting invitation' });
+  }
+});
+
+// POST /api/projects/invitations/:invitationId/decline - Decline an invitation
+router.post('/invitations/:invitationId/decline', authMiddleware, async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const userEmail = req.user.email.toLowerCase();
+
+    const invitation = await Invitation.findById(invitationId);
+
+    if (!invitation) {
+      return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    // Verify the invitation is for this user
+    if (invitation.email.toLowerCase() !== userEmail) {
+      return res.status(403).json({ message: 'This invitation is not for you' });
+    }
+
+    // Check if already accepted or declined
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ message: `Invitation already ${invitation.status}` });
+    }
+
+    // Update invitation status
+    invitation.status = 'declined';
+    await invitation.save();
+
+    return res.status(200).json({
+      message: 'Invitation declined successfully'
+    });
+  } catch (err) {
+    console.error('Decline invitation error:', err);
+    return res.status(500).json({ message: 'Server error declining invitation' });
   }
 });
 
@@ -535,6 +808,115 @@ router.get('/:projectId/recommendations', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get project recommendations error:', err);
     return res.status(500).json({ message: 'Server error generating project recommendations' });
+  }
+});
+
+// GET /api/projects/:projectId/chat-metrics - Get chat activity metrics for a project
+// Query params: ?days=7 (optional, defaults to 7 days)
+router.get('/:projectId/chat-metrics', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const daysBack = parseInt(req.query.days) || 7;
+
+    // Validate days parameter
+    if (daysBack < 1 || daysBack > 365) {
+      return res.status(400).json({ 
+        message: 'Invalid days parameter. Must be between 1 and 365.' 
+      });
+    }
+
+    // Verify project exists
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user is authorized to view this project
+    const userId = req.user.id;
+    const isMember = project.members.some(memberId => memberId.toString() === userId);
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMentor = project.mentors.some(mentorId => mentorId.toString() === userId);
+
+    if (!isMember && !isTeamLead && !isMentor) {
+      return res.status(403).json({ 
+        message: 'Access denied. You are not a member of this project.' 
+      });
+    }
+
+    // Analyze chat activity
+    const chatMetrics = await analyzeChatActivity(projectId, daysBack);
+
+    if (!chatMetrics.success) {
+      return res.status(500).json({ 
+        message: chatMetrics.error || 'Failed to analyze chat metrics' 
+      });
+    }
+
+    // Return the metrics
+    return res.status(200).json({
+      message: 'Chat metrics retrieved successfully',
+      projectId,
+      projectName: project.name,
+      metrics: chatMetrics,
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (err) {
+    console.error('Get chat metrics error:', err);
+    return res.status(500).json({ 
+      message: 'Server error retrieving chat metrics',
+      error: err.message 
+    });
+  }
+});
+
+// GET /api/projects/:projectId/chat-trends - Get chat activity trends over time
+router.get('/:projectId/chat-trends', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Verify project exists
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user is authorized to view this project
+    const userId = req.user.id;
+    const isMember = project.members.some(memberId => memberId.toString() === userId);
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMentor = project.mentors.some(mentorId => mentorId.toString() === userId);
+
+    if (!isMember && !isTeamLead && !isMentor) {
+      return res.status(403).json({ 
+        message: 'Access denied. You are not a member of this project.' 
+      });
+    }
+
+    // Get chat activity trends
+    const chatTrends = await getChatActivityTrends(projectId);
+
+    if (!trends.success) {
+      return res.status(500).json({ 
+        message: trends.error || 'Failed to analyze chat trends' 
+      });
+    }
+
+    // Return the trends
+    return res.status(200).json({
+      message: 'Chat trends retrieved successfully',
+      projectId,
+      projectName: project.name,
+      trends,
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (err) {
+    console.error('Get chat trends error:', err);
+    return res.status(500).json({ 
+      message: 'Server error retrieving chat trends',
+      error: err.message 
+    });
   }
 });
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Box, 
@@ -16,7 +16,13 @@ import {
   AppBar,
   Toolbar,
   IconButton,
-  Drawer
+  Drawer,
+  Badge,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -25,9 +31,13 @@ import ChatIcon from '@mui/icons-material/Chat';
 import PeopleIcon from '@mui/icons-material/People';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import EmailIcon from '@mui/icons-material/Email';
 import TeamMemberDashboard from './TeamMemberDashboard';
 import MentorDashboard from './MentorDashboard';
 import AdminDashboard from './AdminDashboard';
+import axios from 'axios';
+import io from 'socket.io-client';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -35,6 +45,15 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [invitationsDialogOpen, setInvitationsDialogOpen] = useState(false);
+  
+  // Refs for scrolling to sections
+  const dashboardRef = useRef(null);
+  const projectsRef = useRef(null);
+  const tasksRef = useRef(null);
+  const teamRef = useRef(null);
+  const chatRef = useRef(null);
 
   const drawerWidth = 280;
 
@@ -60,6 +79,79 @@ function Dashboard() {
     }
   }, [navigate]);
 
+  // Fetch pending invitations
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchInvitations = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:5000/api/projects/invitations', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        console.log('📥 Fetched invitations:', response.data);
+        setPendingInvitations(response.data.invitations || []);
+      } catch (error) {
+        console.error('Error fetching invitations:', error);
+      }
+    };
+
+    fetchInvitations();
+
+    // Setup Socket.IO for real-time invitation notifications
+    const socket = io('http://localhost:5000');
+    
+    socket.emit('join-user-room', { userId: user.id });
+    
+    socket.on('new-invitation', (data) => {
+      console.log('📬 New invitation received in Dashboard:', data);
+      if (data.invitation) {
+        setPendingInvitations(prev => [data.invitation, ...prev]);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
+  const handleAcceptInvitation = async (invitationId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `http://localhost:5000/api/projects/invitations/${invitationId}/accept`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Remove from pending invitations
+      setPendingInvitations(prev => prev.filter(inv => inv._id !== invitationId));
+      
+      // Refresh the page to show new project
+      window.location.reload();
+    } catch (error) {
+      console.error('Error accepting invitation:', error);
+      alert(error.response?.data?.message || 'Failed to accept invitation');
+    }
+  };
+
+  const handleDeclineInvitation = async (invitationId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `http://localhost:5000/api/projects/invitations/${invitationId}/decline`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Remove from pending invitations
+      setPendingInvitations(prev => prev.filter(inv => inv._id !== invitationId));
+    } catch (error) {
+      console.error('Error declining invitation:', error);
+      alert(error.response?.data?.message || 'Failed to decline invitation');
+    }
+  };
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
@@ -70,12 +162,35 @@ function Dashboard() {
     navigate('/login');
   };
 
+  const handleSectionClick = (sectionId) => {
+    setActiveSection(sectionId);
+    setMobileOpen(false); // Close mobile drawer after click
+    
+    // Map sections to their refs
+    const sectionRefs = {
+      dashboard: dashboardRef,
+      projects: projectsRef,
+      tasks: tasksRef,
+      team: teamRef,
+      chat: projectsRef // Chat navigates to projects section
+    };
+    
+    const targetRef = sectionRefs[sectionId];
+    if (targetRef?.current) {
+      targetRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      });
+    }
+  };
+
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
-    { id: 'projects', label: 'Projects', icon: <FolderIcon /> },
-    { id: 'tasks', label: 'Tasks', icon: <AssignmentIcon /> },
-    { id: 'team', label: 'Team', icon: <PeopleIcon /> },
-    { id: 'chat', label: 'Chat', icon: <ChatIcon /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon />, description: 'Overview & Tasks' },
+    { id: 'projects', label: 'Projects', icon: <FolderIcon />, description: 'Manage Projects' },
+    { id: 'tasks', label: 'Tasks', icon: <AssignmentIcon />, description: 'Task Management' },
+    { id: 'team', label: 'Team', icon: <PeopleIcon />, description: 'Team Members' },
+    { id: 'chat', label: 'Chat', icon: <ChatIcon />, description: 'Team Communication' },
   ];
 
   const getRoleColor = (role) => {
@@ -126,11 +241,38 @@ function Dashboard() {
 
       {/* Navigation Menu */}
       <List sx={{ flex: 1, pt: 2 }}>
+        {/* Invitations Button */}
+        <ListItem disablePadding sx={{ mb: 1 }}>
+          <ListItemButton
+            onClick={() => setInvitationsDialogOpen(true)}
+            sx={{
+              mx: 1,
+              borderRadius: 2,
+              bgcolor: pendingInvitations.length > 0 ? 'warning.light' : 'transparent',
+              '&:hover': {
+                bgcolor: pendingInvitations.length > 0 ? 'warning.main' : 'action.hover',
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <Badge badgeContent={pendingInvitations.length} color="error">
+                <NotificationsIcon />
+              </Badge>
+            </ListItemIcon>
+            <ListItemText 
+              primary="Invitations"
+              primaryTypographyProps={{ fontWeight: 500 }}
+            />
+          </ListItemButton>
+        </ListItem>
+
+        <Divider sx={{ my: 1 }} />
+
         {menuItems.map((item) => (
           <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               selected={activeSection === item.id}
-              onClick={() => setActiveSection(item.id)}
+              onClick={() => handleSectionClick(item.id)}
               sx={{
                 mx: 1,
                 borderRadius: 2,
@@ -206,32 +348,45 @@ function Dashboard() {
 
   // Render main content based on active section
   const renderMainContent = () => {
-    if (activeSection !== 'dashboard') {
-      return (
-        <Box sx={{ p: 4 }}>
-          <Paper elevation={2} sx={{ p: 4, textAlign: 'center', minHeight: 400 }}>
-            <Typography variant="h4" gutterBottom color="primary">
-              {menuItems.find(item => item.id === activeSection)?.label}
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
-              This section is under development. 
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Coming soon with enhanced features!
-            </Typography>
-          </Paper>
-        </Box>
-      );
+    const sectionRefs = {
+      dashboardRef,
+      projectsRef,
+      tasksRef,
+      teamRef,
+      chatRef
+    };
+
+    // Render role-specific dashboard for 'dashboard' section
+    if (activeSection === 'dashboard') {
+      switch (user.role) {
+        case 'Admin/Team Lead':
+          return <AdminDashboard user={user} sectionRefs={sectionRefs} />;
+        case 'Mentor':
+          return <MentorDashboard user={user} sectionRefs={sectionRefs} />;
+        case 'Team Members':
+          return <TeamMemberDashboard user={user} sectionRefs={sectionRefs} />;
+        default:
+          return (
+            <Box sx={{ p: 4 }}>
+              <Paper elevation={2} sx={{ p: 4 }}>
+                <Typography variant="h5" color="error">
+                  Unknown role: {user.role}
+                </Typography>
+              </Paper>
+            </Box>
+          );
+      }
     }
 
-    // Render role-specific dashboard
+    // For other sections, render the appropriate role-specific dashboard
+    // since all features are integrated into the role-specific dashboards
     switch (user.role) {
       case 'Admin/Team Lead':
-        return <AdminDashboard user={user} />;
+        return <AdminDashboard user={user} sectionRefs={sectionRefs} />;
       case 'Mentor':
-        return <MentorDashboard user={user} />;
+        return <MentorDashboard user={user} sectionRefs={sectionRefs} />;
       case 'Team Members':
-        return <TeamMemberDashboard user={user} />;
+        return <TeamMemberDashboard user={user} sectionRefs={sectionRefs} />;
       default:
         return (
           <Box sx={{ p: 4 }}>
@@ -264,9 +419,18 @@ function Dashboard() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Dashboard
           </Typography>
+          {/* Notification Icon */}
+          <IconButton 
+            color="inherit" 
+            onClick={() => setInvitationsDialogOpen(true)}
+          >
+            <Badge badgeContent={pendingInvitations.length} color="error">
+              <NotificationsIcon />
+            </Badge>
+          </IconButton>
         </Toolbar>
       </AppBar>
 
@@ -320,8 +484,170 @@ function Dashboard() {
           mt: { xs: '64px', sm: 0 }, // Account for mobile AppBar
         }}
       >
+        {/* Active Section Indicator (only show if not dashboard) */}
+        {activeSection !== 'dashboard' && (
+          <Box sx={{ bgcolor: 'primary.main', color: 'white', py: 1, px: 3 }}>
+            <Typography variant="body2">
+              📍 Viewing: <strong>{menuItems.find(item => item.id === activeSection)?.label}</strong> - 
+              All features are integrated below. Scroll to find {menuItems.find(item => item.id === activeSection)?.description.toLowerCase()}.
+            </Typography>
+          </Box>
+        )}
         {renderMainContent()}
       </Box>
+
+      {/* Invitations Dialog */}
+      <Dialog 
+        open={invitationsDialogOpen} 
+        onClose={() => setInvitationsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: 3,
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: 'white', fontWeight: 700, fontSize: '1.5rem' }}>
+          📬 Pending Invitations ({pendingInvitations.length})
+        </DialogTitle>
+        <DialogContent>
+          {pendingInvitations.length === 0 ? (
+            <Paper 
+              sx={{ 
+                p: 4, 
+                textAlign: 'center',
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: 2
+              }}
+            >
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                You have no pending invitations
+              </Typography>
+            </Paper>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              {pendingInvitations.map((invitation) => (
+                <Paper
+                  key={invitation._id}
+                  sx={{
+                    p: 3,
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 2 }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <EmailIcon sx={{ mr: 1, color: '#4dabf7' }} />
+                        <Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
+                          {invitation.project?.name || 'Unknown Project'}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                        <Chip 
+                          label={`Role: ${invitation.role}`}
+                          size="small"
+                          sx={{
+                            background: 'linear-gradient(135deg, #51cf66 0%, #37b24d 100%)',
+                            color: 'white',
+                            fontWeight: 600
+                          }}
+                        />
+                        <Chip 
+                          label={`Code: ${invitation.project?.teamCode || 'N/A'}`}
+                          size="small"
+                          sx={{
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            backdropFilter: 'blur(5px)',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            fontWeight: 600
+                          }}
+                        />
+                      </Box>
+
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)', mb: 1 }}>
+                        {invitation.project?.description || 'No description available'}
+                      </Typography>
+
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                        Invited by: <strong>{invitation.invitedBy?.username || 'Unknown'}</strong> ({invitation.invitedBy?.email || 'N/A'})
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 120 }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => handleAcceptInvitation(invitation._id)}
+                        sx={{
+                          background: 'linear-gradient(135deg, #51cf66 0%, #37b24d 100%)',
+                          color: 'white',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #37b24d 0%, #51cf66 100%)',
+                            transform: 'scale(1.05)',
+                          }
+                        }}
+                      >
+                        ✓ Accept
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleDeclineInvitation(invitation._id)}
+                        sx={{
+                          borderColor: 'rgba(255, 107, 107, 0.8)',
+                          color: '#ff6b6b',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          '&:hover': {
+                            borderColor: '#ff6b6b',
+                            background: 'rgba(255, 107, 107, 0.1)',
+                          }
+                        }}
+                      >
+                        ✕ Decline
+                      </Button>
+                    </Box>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setInvitationsDialogOpen(false)}
+            sx={{
+              color: 'white',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                background: 'rgba(255, 255, 255, 0.1)'
+              }
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

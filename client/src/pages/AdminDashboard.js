@@ -23,6 +23,8 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemAvatar,
+  Avatar,
   Select,
   MenuItem,
   FormControl,
@@ -37,7 +39,11 @@ import {
   Tabs,
   Tab,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormLabel
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -53,11 +59,17 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PendingIcon from '@mui/icons-material/Pending';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
+import ChatIcon from '@mui/icons-material/Chat';
+import PeopleIcon from '@mui/icons-material/People';
+import SchoolIcon from '@mui/icons-material/School';
+import EmailIcon from '@mui/icons-material/Email';
 import axios from 'axios';
 import BurndownChart from '../components/BurndownChart';
 import RecommendationWidget from '../components/RecommendationWidget';
+import ProjectChat from '../components/ProjectChat';
+import ChatAnalysisReport from '../components/ChatAnalysisReport';
 
-function AdminDashboard({ user }) {
+function AdminDashboard({ user, sectionRefs }) {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -89,6 +101,12 @@ function AdminDashboard({ user }) {
   const [tabValue, setTabValue] = useState(0);
   const [taskView, setTaskView] = useState('kanban'); // 'table' or 'kanban'
 
+  // Invite states
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('Team Member');
+  const [selectedProjectForInvite, setSelectedProjectForInvite] = useState(null);
+
   useEffect(() => {
     fetchProjects();
   }, []);
@@ -113,6 +131,73 @@ function AdminDashboard({ user }) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
+  };
+
+  const handleOpenInviteDialog = (project) => {
+    setSelectedProjectForInvite(project);
+    setInviteDialogOpen(true);
+    setInviteEmail('');
+    setInviteRole('Team Member');
+    setError('');
+    setSuccess('');
+  };
+
+  const handleCloseInviteDialog = () => {
+    setInviteDialogOpen(false);
+    setInviteEmail('');
+    setInviteRole('Team Member');
+    setSelectedProjectForInvite(null);
+  };
+
+  const handleSendInvite = async () => {
+    try {
+      if (!inviteEmail.trim()) {
+        setError('Please enter an email address');
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(inviteEmail.trim())) {
+        setError('Please enter a valid email address');
+        return;
+      }
+
+      setError('');
+      setSuccess('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5000/api/projects/invite',
+        {
+          projectId: selectedProjectForInvite._id,
+          email: inviteEmail.trim(),
+          role: inviteRole
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const inviteDetails = `
+📧 Invitation sent successfully!
+
+To: ${inviteEmail}
+Role: ${inviteRole}
+Project: ${selectedProjectForInvite.name}
+Team Code: ${selectedProjectForInvite.teamCode}
+
+The invitee will see this invitation when they log in to their dashboard.
+      `.trim();
+
+      setSuccess(inviteDetails);
+      setInviteDialogOpen(false);
+      setInviteEmail('');
+      setInviteRole('Team Member');
+      setSelectedProjectForInvite(null);
+      
+      setTimeout(() => setSuccess(''), 10000);
+    } catch (err) {
+      console.error('Error sending invitation:', err);
+      setError(err.response?.data?.message || 'Failed to send invitation');
+    }
   };
 
   // Create Project Handlers
@@ -469,6 +554,143 @@ function AdminDashboard({ user }) {
               ))}
             </Grid>
           </Box>
+        )}
+
+        {/* Team Members Section */}
+        {projects.length > 0 && (
+          <div ref={sectionRefs?.teamRef}>
+            <Paper elevation={2} sx={{ p: 2.5, mt: 2, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <PeopleIcon sx={{ mr: 1, fontSize: 30 }} color="primary" />
+                <Typography variant="h5">Team Members</Typography>
+                <Chip label="By Project" color="primary" size="small" sx={{ ml: 2 }} />
+              </Box>
+
+              <Grid container spacing={2}>
+                {projects.map((project) => (
+                  <Grid item xs={12} md={6} key={project._id}>
+                    <Card elevation={3}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="h6" color="primary">
+                            {project.name}
+                          </Typography>
+                          <Chip 
+                            label={`Code: ${project.teamCode}`} 
+                            size="small" 
+                            color="primary"
+                          />
+                        </Box>
+
+                        <Divider sx={{ mb: 2 }} />
+
+                        {/* Team Lead */}
+                        {project.teamLead && (
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                              Team Lead
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: 'primary.light', borderRadius: 1 }}>
+                              <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                {project.teamLead.username?.charAt(0).toUpperCase()}
+                              </Avatar>
+                              <Box>
+                                <Typography variant="body1" fontWeight="600">
+                                  {project.teamLead.username}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {project.teamLead.email}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Box>
+                        )}
+
+                        {/* Team Members */}
+                        {project.members && project.members.length > 0 && (
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                              Members ({project.members.length})
+                            </Typography>
+                            <List dense>
+                              {project.members.map((member) => (
+                                <ListItem key={member._id} sx={{ px: 1 }}>
+                                  <ListItemAvatar>
+                                    <Avatar sx={{ bgcolor: 'success.main', width: 36, height: 36 }}>
+                                      {member.username?.charAt(0).toUpperCase()}
+                                    </Avatar>
+                                  </ListItemAvatar>
+                                  <ListItemText
+                                    primary={member.username}
+                                    secondary={member.email}
+                                    primaryTypographyProps={{ fontWeight: 500 }}
+                                  />
+                                </ListItem>
+                              ))}
+                            </List>
+                          </Box>
+                        )}
+
+                        {/* Mentors */}
+                        {project.mentors && project.mentors.length > 0 && (
+                          <Box>
+                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                              Mentors ({project.mentors.length})
+                            </Typography>
+                            <List dense>
+                              {project.mentors.map((mentor) => (
+                                <ListItem key={mentor._id} sx={{ px: 1 }}>
+                                  <ListItemAvatar>
+                                    <Avatar sx={{ bgcolor: 'secondary.main', width: 36, height: 36 }}>
+                                      {mentor.username?.charAt(0).toUpperCase()}
+                                    </Avatar>
+                                  </ListItemAvatar>
+                                  <ListItemText
+                                    primary={mentor.username}
+                                    secondary={mentor.email}
+                                    primaryTypographyProps={{ fontWeight: 500 }}
+                                  />
+                                </ListItem>
+                              ))}
+                            </List>
+                          </Box>
+                        )}
+
+                        {/* Summary Stats */}
+                        <Divider sx={{ my: 2 }} />
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                          <Chip 
+                            icon={<GroupIcon />}
+                            label={`${(project.members?.length || 0) + 1} Members`} 
+                            size="small" 
+                            color="success"
+                          />
+                          <Chip 
+                            icon={<SchoolIcon />}
+                            label={`${project.mentors?.length || 0} Mentors`} 
+                            size="small" 
+                            color="secondary"
+                          />
+                        </Box>
+
+                        {/* Invite Button */}
+                        <Button
+                          variant="outlined"
+                          color="primary"
+                          startIcon={<EmailIcon />}
+                          fullWidth
+                          onClick={() => handleOpenInviteDialog(project)}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          Invite Team Member / Mentor
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Paper>
+          </div>
         )}
 
         {/* Create Project Dialog */}
@@ -988,6 +1210,114 @@ function AdminDashboard({ user }) {
               <Alert severity="info">Select a project to view details.</Alert>
             )}
           </DialogContent>
+        </Dialog>
+
+        {/* Invite Team Member/Mentor Dialog */}
+        <Dialog
+          open={inviteDialogOpen}
+          onClose={handleCloseInviteDialog}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <EmailIcon sx={{ mr: 1 }} color="primary" />
+                <Typography variant="h6">
+                  Invite to Team
+                </Typography>
+              </Box>
+              <IconButton onClick={handleCloseInviteDialog}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            {selectedProjectForInvite && (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: 'primary.light', borderRadius: 1 }}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Inviting to project:
+                </Typography>
+                <Typography variant="body1" fontWeight="600" color="primary">
+                  {selectedProjectForInvite.name}
+                </Typography>
+                <Chip 
+                  label={`Code: ${selectedProjectForInvite.teamCode}`} 
+                  size="small" 
+                  color="primary"
+                  sx={{ mt: 0.5 }}
+                />
+              </Box>
+            )}
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Send an email invitation to join your team as a member or mentor.
+            </Typography>
+
+            <TextField
+              autoFocus
+              label="Email Address"
+              fullWidth
+              variant="outlined"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="colleague@example.com"
+              sx={{ mb: 2 }}
+              helperText="Enter the email address of the person you want to invite"
+            />
+
+            <FormControl component="fieldset" sx={{ mb: 2 }}>
+              <FormLabel component="legend">Role</FormLabel>
+              <RadioGroup
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                <FormControlLabel 
+                  value="Team Member" 
+                  control={<Radio />} 
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight="600">Team Member</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Can view tasks, chat with team, and update their own tasks
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel 
+                  value="Mentor" 
+                  control={<Radio />} 
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight="600">Mentor</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Can guide the team, view metrics, and monitor progress
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+
+            <Alert severity="info" sx={{ mt: 2 }}>
+              The invited person will receive a notification when they log in to their dashboard.
+            </Alert>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseInviteDialog}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendInvite} 
+              variant="contained" 
+              color="primary"
+              startIcon={<EmailIcon />}
+              disabled={!inviteEmail.trim()}
+            >
+              Send Invitation
+            </Button>
+          </DialogActions>
         </Dialog>
       </Container>
     </Box>

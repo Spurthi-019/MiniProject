@@ -1,49 +1,72 @@
 # Mini Project - Project & Task Management System
 
-A full-stack collaborative project management system with role-based dashboards built with React, Node.js, Express, MongoDB, and Material-UI. Teams can create projects, assign tasks, track progress, and monitor individual contributions with comprehensive analytics.
+A full-stack collaborative project management system with role-based dashboards, real-time notifications, and team invitations built with React, Node.js, Express, MongoDB, Socket.IO, and Material-UI. Teams can create projects, invite members, assign tasks, track progress, and monitor team collaboration with comprehensive analytics.
 
 ## ✨ Features
 
 ### Authentication & Authorization
 - 🔐 User registration and login with JWT authentication
 - 👥 Role-based access control (Admin/Team Lead, Team Members, Mentor)
-- � Auto-redirect to role-specific dashboards after login
+- 🔄 Auto-redirect to role-specific dashboards after login
+- 🎨 Modern glassmorphism UI with gradient backgrounds
+
+### Team Management & Invitations
+- 📧 **Email-based Team Invitations**: Send invitations directly from the dashboard
+- 🔔 **Real-time Notifications**: Instant invitation alerts via Socket.IO
+- 👥 **Role Selection**: Invite as Team Member or Mentor
+- ✅ **Accept/Decline System**: Manage invitations from notification center
+- ⏰ **Auto-expiry**: Invitations automatically expire after 7 days
+- 🔒 **Permission-based**: Only Team Leads and Mentors can send invitations
 
 ### Project Management
-- 📁 Create projects with unique 6-digit team codes
-- 🤝 Join projects using team codes
+- 📁 Create projects with unique auto-generated team codes
+- 🤝 Join projects using team codes (unlimited character length)
+- 📩 Receive and manage project invitations
 - 👨‍💼 Automatic role-based assignment (members/mentors)
 - 📊 View all projects you're part of
+- 🔔 Notification bell showing pending invitations count
 
 ### Task Management
 - ✅ Create and assign tasks to team members
 - 📝 Task details with title, description, deadline
-- � Three status categories: To Do, In Progress, Done
+- 🎯 Three status categories: To Do, In Progress, Done
 - 🎯 Update task status with real-time UI updates
 - 📋 View tasks categorized by status (Kanban-style)
+- 🎨 Color-coded status chips and modern glassmorphism cards
 
 ### Role-Based Dashboards
 
 #### Team Member Dashboard
-- 📊 Kanban board with three columns (To Do, In Progress, Done)
+- 📊 Kanban board with three columns (To Do, In Progress, Done) with modern glassmorphism
 - ✏️ Update task status via dropdown
 - 📈 View all assigned tasks with project details
-- 🎨 Color-coded status chips and progress indicators
-- 📉 **Burndown Chart**: Visual project progress tracking with ideal vs. actual burndown lines
+- 🎨 Modern gradient UI with smooth transitions
+- 📉 **Burndown Chart**: Visual project progress tracking
+- 🔔 **Join Team by Code**: Enter any length team code to join projects
+- 📬 **Accept Invitations**: View and manage received invitations
+- ❌ **No Invite Permission**: Cannot invite others (restricted to Team Leads and Mentors)
 
 #### Mentor Dashboard
-- � View all projects being mentored
+- 📊 View all projects being mentored
 - 🔍 Drill-down into project details with tabs:
   - **Tasks Tab**: Complete task list with status, assignee, deadlines
   - **Contribution Metrics Tab**: Individual performance analytics
-  - **Burndown Chart Tab**: Visual project progress with ideal and actual task completion trends
+  - **Burndown Chart Tab**: Visual project progress tracking
+  - **Team Chat Tab**: Real-time messaging with project team
+  - **Chat Analysis Tab**: Communication health monitoring
 - 📊 Visual progress bars and completion rates
 - 📈 Team member performance comparison
+- ✅ **Invite Team Members/Mentors**: Send email invitations to join projects
+- 🔍 **Check Chat Health**: Analyze team communication patterns and engagement
+- 📬 Real-time invitation notifications
 
 #### Admin/Team Lead Dashboard
 - 🎛️ Create projects and manage team
 - 📝 Create and assign tasks to members
 - 👥 View team composition and roles
+- ✅ **Invite Team Members/Mentors**: Send invitations with role selection
+- 📊 Project metrics and team analytics
+- 🔔 Notification center for incoming invitations
 
 ### Analytics & Metrics
 - 📊 Project completion statistics
@@ -57,6 +80,18 @@ A full-stack collaborative project management system with role-based dashboards 
   - Project timeline with start/end dates
   - Daily progress tracking
   - Statistics summary (total, completed, remaining tasks, progress %)
+- 💬 **Chat Health Analysis**: 
+  - Message frequency tracking
+  - Member participation rates
+  - Communication pattern analysis
+  - Engagement metrics
+
+### Real-Time Features
+- 🔔 **Instant Notifications**: Socket.IO powered real-time updates
+- 📧 **Live Invitation Alerts**: Notifications appear without page refresh
+- 💬 **Team Chat**: Real-time messaging within projects
+- 👥 **Online Presence**: See who's currently active in projects
+- 🔄 **Auto-sync**: Project updates reflect immediately across all users
 
 ## 🛠️ Tech Stack
 
@@ -249,6 +284,42 @@ Content-Type: application/json
 - Mentor role → added to `mentors` array
 - Other roles → added to `members` array
 
+#### Send Invitation (Team Lead/Mentor only)
+```http
+POST /api/projects/invite
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "projectId": "project-id",
+  "email": "colleague@example.com",
+  "role": "Team Member"  // "Team Member" or "Mentor"
+}
+```
+**Response:** Returns invitation details and sends real-time notification to invitee
+**Note:** Invitation expires after 7 days
+
+#### Get My Invitations
+```http
+GET /api/projects/invitations
+Authorization: Bearer <token>
+```
+**Response:** Returns all pending invitations for the logged-in user's email
+
+#### Accept Invitation
+```http
+POST /api/projects/invitations/:invitationId/accept
+Authorization: Bearer <token>
+```
+**Response:** Adds user to project and updates invitation status to "accepted"
+
+#### Decline Invitation
+```http
+POST /api/projects/invitations/:invitationId/decline
+Authorization: Bearer <token>
+```
+**Response:** Updates invitation status to "declined"
+
 ### Task Routes (`/api/tasks`)
 
 #### Create Task (Team Lead only)
@@ -369,6 +440,22 @@ GET /api/auth/users
 - Timestamps: `createdAt`, `updatedAt`
 - **Indexes**: Compound index on `{project, status}` for fast queries
 
+### Message
+- `project` (Project reference, required)
+- `sender` (User reference, required)
+- `content` (required)
+- Timestamps: `createdAt`, `updatedAt`
+
+### Invitation
+- `project` (Project reference, required)
+- `email` (required)
+- `role` (enum: Team Members, Mentor)
+- `invitedBy` (User reference, required)
+- `status` (enum: pending, accepted, declined, expired)
+- Timestamps: `createdAt`, `updatedAt`
+- **TTL Index**: Auto-expires after 7 days (604800 seconds)
+- **Indexes**: Compound index on `{email, status}` for efficient queries
+
 ## 🎯 Use Cases
 
 ### For Team Leads
@@ -451,9 +538,9 @@ GET /api/auth/users
 
 | Role | Permissions |
 |------|-------------|
-| **Admin/Team Lead** | Create projects, create tasks, assign tasks |
-| **Team Members** | Join projects, view tasks, update own tasks |
-| **Mentor** | Join projects as mentor, view tasks, provide guidance |
+| **Admin/Team Lead** | ✅ Create projects<br>✅ Create & assign tasks<br>✅ Invite team members/mentors<br>✅ View all team analytics |
+| **Team Members** | ✅ Join projects via code<br>✅ Accept/decline invitations<br>✅ View & update own tasks<br>❌ Cannot invite others<br>❌ Cannot check chat health |
+| **Mentor** | ✅ Join projects as mentor<br>✅ Invite team members/mentors<br>✅ Check chat health<br>✅ View project metrics<br>✅ Monitor team progress |
 
 ## 📁 Project Structure
 
