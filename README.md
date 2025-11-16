@@ -41,12 +41,21 @@ A full-stack collaborative project management system with role-based dashboards,
 - 🎯 **Role Identification**: Automatically shows your role in each project (Team Lead, Member, Mentor)
 - 📊 **Project Cards**: Clean, responsive Material-UI cards with glassmorphism design
 - 👥 **Team Information**: See team lead, member count, and mentor count at a glance
+- 🏆 **Weekly Contribution Display**: Each project card shows:
+  - Top contributor for the last 7 days
+  - Message count and calculated points
+  - Visual indicators with goldenrod accents
+- 🌟 **Most Active Person Banner**: Prominent display showing:
+  - Champion across all projects
+  - Total messages, active projects, and total points
+  - Glassmorphism design with trophy icon
+- 💬 **Unified Chat Integration**: Access ProjectChatWindow directly from cards
+- 🔔 **Unread Message Badges**: Visual indicators for new messages per project
 - 🔍 **View Details**: Comprehensive project information dialog with:
   - Complete team member list with avatars and emails
   - Full mentor roster
   - Project description and team code
   - Your role highlighted
-- 💬 **Project Chat Access**: Quick access to project communication
 - 🔙 **Navigation**: Easy return to your role-specific dashboard
 - 📱 **Responsive Design**: Mobile-friendly grid layout (1-3 columns)
 - ⚡ **Granular API**: Secure `/api/projects/user-projects` endpoint with role detection
@@ -57,7 +66,9 @@ A full-stack collaborative project management system with role-based dashboards,
 - 📈 View all assigned tasks with project details
 - 🎨 Modern gradient UI with smooth transitions
 - 📉 **Burndown Chart**: Visual project progress tracking
-- 🔔 **Join Team by Code**: Enter any length team code to join projects
+- � **Integrated Chat**: ProjectChatWindow component for real-time team communication
+- 🔔 **Chat Notifications**: Browser notifications and unread badges for new messages
+- �🔔 **Join Team by Code**: Enter any length team code to join projects
 - 📬 **Accept Invitations**: View and manage received invitations
 - ❌ **No Invite Permission**: Cannot invite others (restricted to Team Leads and Mentors)
 - 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
@@ -68,12 +79,13 @@ A full-stack collaborative project management system with role-based dashboards,
   - **Tasks Tab**: Complete task list with status, assignee, deadlines
   - **Contribution Metrics Tab**: Individual performance analytics
   - **Burndown Chart Tab**: Visual project progress tracking
-  - **Team Chat Tab**: Real-time messaging with project team
-  - **Chat Analysis Tab**: Communication health monitoring
+  - **Team Chat Tab**: ProjectChatWindow for real-time messaging
+  - **Chat Analysis Tab**: Communication health monitoring with 7-day metrics
 - 📊 Visual progress bars and completion rates
 - 📈 Team member performance comparison
 - ✅ **Invite Team Members/Mentors**: Send email invitations to join projects
 - 🔍 **Check Chat Health**: Analyze team communication patterns and engagement
+- 💬 **Real-time Chat Notifications**: Instant alerts for new messages
 - 📬 Real-time invitation notifications
 - 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
 
@@ -82,7 +94,9 @@ A full-stack collaborative project management system with role-based dashboards,
 - 📝 Create and assign tasks to members
 - 👥 View team composition and roles
 - ✅ **Invite Team Members/Mentors**: Send invitations with role selection
-- 📊 Project metrics and team analytics
+- � **Integrated Chat**: ProjectChatWindow in project detail dialogs
+- 🔔 **Real-time Notifications**: Chat alerts and invitation updates
+- �📊 Project metrics and team analytics
 - 🔔 Notification center for incoming invitations
 - 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
 
@@ -107,9 +121,21 @@ A full-stack collaborative project management system with role-based dashboards,
 ### Real-Time Features
 - 🔔 **Instant Notifications**: Socket.IO powered real-time updates
 - 📧 **Live Invitation Alerts**: Notifications appear without page refresh
-- 💬 **Team Chat**: Real-time messaging within projects
-- 👥 **Online Presence**: See who's currently active in projects
+- 💬 **Unified Project Chat**: Real-time messaging within projects with:
+  - Cross-dashboard integration (works in all dashboards)
+  - Live typing indicators
+  - Message deletion (own messages only)
+  - Online presence tracking
+  - Auto-scroll to latest messages
+  - Message timestamps with relative time display
+- � **Weekly Contribution Tracking**: 7-day rolling window analysis showing:
+  - Top contributors per project with point system
+  - Most active person overall across all projects
+  - Message count and activity metrics
+  - Bonus points for high activity (10+, 20+, 50+ messages)
+- �👥 **Online Presence**: See who's currently active in projects
 - 🔄 **Auto-sync**: Project updates reflect immediately across all users
+- 🏆 **Gamification**: Point-based contributor ranking with achievement indicators
 
 ## 🛠️ Tech Stack
 
@@ -272,6 +298,56 @@ Content-Type: application/json
 }
 ```
 **Response:** Returns JWT token
+
+### Chat Routes (`/api/chat`)
+
+#### Send Message
+```http
+POST /api/chat/:projectId/send
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "content": "Hello team! Great progress today."
+}
+```
+**Response:** Returns created message and sends real-time notifications to all project members
+**Features:**
+- Sends browser notifications to offline members
+- Emits Socket.IO event to online members
+- Includes sender info and timestamp
+
+#### Get Project Messages
+```http
+GET /api/chat/:projectId/messages?limit=100&before=messageId
+Authorization: Bearer <token>
+```
+**Query Params:**
+- `limit` (optional): Number of messages to fetch (default: 50)
+- `before` (optional): Message ID for pagination
+
+**Response:** Returns messages in chronological order with sender details
+
+#### Delete Message
+```http
+DELETE /api/chat/messages/:messageId
+Authorization: Bearer <token>
+```
+**Response:** Soft deletes the message (only sender can delete own messages)
+
+#### Get Chat Metrics
+```http
+GET /api/projects/:projectId/chat-metrics
+Authorization: Bearer <token>
+```
+**Response:** Returns 7-day chat analysis including:
+- `totalMessages`: Total message count
+- `topContributors`: Array of top 3 contributors with message counts
+- `metrics.summary`: Detailed statistics (messages per day, activity rate, etc.)
+- `metrics.allMemberActivity`: Complete activity breakdown for all participants
+- `metrics.insights`: AI-generated communication insights
+
+**Note:** Always analyzes the last 7 days, includes team leads, members, and mentors
 
 ### Project Routes (`/api/projects`)
 
@@ -603,10 +679,16 @@ Mini Project/
 ├── client/                          # React frontend
 │   ├── public/
 │   ├── src/
+│   │   ├── components/
+│   │   │   ├── ProjectChatWindow.js     # Reusable chat component
+│   │   │   ├── BurndownChart.js         # Burndown chart visualization
+│   │   │   ├── ChatAnalysisReport.js    # Chat health analysis
+│   │   │   └── RecommendationWidget.js  # AI recommendations
 │   │   ├── pages/
 │   │   │   ├── Login.js            # Login page
 │   │   │   ├── Register.js         # Registration page
 │   │   │   ├── Dashboard.js        # Main dashboard router
+│   │   │   ├── MainDashboard.js         # Unified project view with chat metrics
 │   │   │   ├── TeamMemberDashboard.js   # Team member view
 │   │   │   ├── MentorDashboard.js       # Mentor view with metrics
 │   │   │   └── AdminDashboard.js        # Admin/Team lead view
@@ -618,13 +700,19 @@ Mini Project/
 │   ├── models/
 │   │   ├── User.js                 # User schema with bcrypt
 │   │   ├── Project.js              # Project schema with teamCode
-│   │   └── Task.js                 # Task schema with status
+│   │   ├── Task.js                 # Task schema with status
+│   │   ├── Message.js              # Chat message schema
+│   │   └── Invitation.js           # Invitation schema with TTL
 │   ├── routes/
 │   │   ├── auth.js                 # Auth routes (register, login, users)
-│   │   ├── project.js              # Project routes (create, join, metrics)
-│   │   └── task.js                 # Task routes (create, get, update status)
+│   │   ├── project.js              # Project routes (create, join, metrics, chat-metrics)
+│   │   ├── task.js                 # Task routes (create, get, update status)
+│   │   └── chat.js                 # Chat routes (send, get messages, delete)
+│   ├── utils/
+│   │   ├── chatAnalysis.js         # 7-day chat metrics and insights
+│   │   └── aiAnalysis.js           # Project health analysis
 │   ├── authMiddleware.js           # JWT verification & role authorization
-│   ├── server.js                   # Express app entry point
+│   ├── server.js                   # Express app with Socket.IO integration
 │   └── .env                        # Environment variables
 ├── create-test-data.ps1            # Test data creation script
 ├── setup-test-data.ps1             # Simplified test data script

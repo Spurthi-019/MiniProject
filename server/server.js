@@ -122,11 +122,12 @@ io.on('connection', (socket) => {
     socket.to(`project-${projectId}`).emit('user-stopped-typing', { username });
   });
 
-  // Handle user joining their personal notification room (for invitations)
-  socket.on('join-user-room', (userId) => {
+  // Handle user joining their personal notification room (for invitations and chat notifications)
+  socket.on('join-user-room', (data) => {
+    const userId = data?.userId || data;
     const userRoom = `user-${userId}`;
     socket.join(userRoom);
-    console.log(`User ${socket.id} joined personal room: ${userRoom}`);
+    console.log(`👤 User ${socket.id} joined personal room: ${userRoom}`);
   });
 
   // Handle disconnecting to update presence for any project rooms

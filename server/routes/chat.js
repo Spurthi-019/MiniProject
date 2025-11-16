@@ -51,6 +51,37 @@ router.post('/:projectId/send', authMiddleware, async (req, res) => {
     // Populate sender info for response
     await message.populate('sender', 'username email role');
 
+    // Emit notification to all project members via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      // Get all project members' IDs
+      const allMemberIds = [
+        project.teamLead.toString(),
+        ...project.members.map(m => m.toString()),
+        ...project.mentors.map(m => m.toString())
+      ];
+
+      // Remove duplicates and the sender
+      const uniqueMemberIds = [...new Set(allMemberIds)].filter(id => id !== userId);
+
+      // Emit notification to each member's personal room
+      uniqueMemberIds.forEach(memberId => {
+        io.to(`user-${memberId}`).emit('new-chat-notification', {
+          projectId: projectId,
+          projectName: project.name,
+          messageId: message._id,
+          sender: {
+            id: message.sender._id,
+            username: message.sender.username
+          },
+          content: content.trim(),
+          timestamp: message.createdAt
+        });
+      });
+
+      console.log(`📬 Sent chat notifications to ${uniqueMemberIds.length} members for project ${project.name}`);
+    }
+
     return res.status(201).json({
       message: 'Message sent successfully',
       chatMessage: message

@@ -862,18 +862,11 @@ router.get('/:projectId/recommendations', authMiddleware, async (req, res) => {
 });
 
 // GET /api/projects/:projectId/chat-metrics - Get chat activity metrics for a project
-// Query params: ?days=7 (optional, defaults to 7 days)
+// Always calculates over the last 7 days and includes total messages and top contributors
 router.get('/:projectId/chat-metrics', authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
-    const daysBack = parseInt(req.query.days) || 7;
-
-    // Validate days parameter
-    if (daysBack < 1 || daysBack > 365) {
-      return res.status(400).json({ 
-        message: 'Invalid days parameter. Must be between 1 and 365.' 
-      });
-    }
+    const daysBack = 7; // Always use 7 days for consistency
 
     // Verify project exists
     const project = await Project.findById(projectId);
@@ -893,7 +886,7 @@ router.get('/:projectId/chat-metrics', authMiddleware, async (req, res) => {
       });
     }
 
-    // Analyze chat activity
+    // Analyze chat activity over the last 7 days
     const chatMetrics = await analyzeChatActivity(projectId, daysBack);
 
     if (!chatMetrics.success) {
@@ -902,11 +895,14 @@ router.get('/:projectId/chat-metrics', authMiddleware, async (req, res) => {
       });
     }
 
-    // Return the metrics
+    // Return the metrics with total messages and top contributors
     return res.status(200).json({
       message: 'Chat metrics retrieved successfully',
       projectId,
       projectName: project.name,
+      daysAnalyzed: daysBack,
+      totalMessages: chatMetrics.summary.totalMessages,
+      topContributors: chatMetrics.topActiveMembers,
       metrics: chatMetrics,
       generatedAt: new Date().toISOString()
     });

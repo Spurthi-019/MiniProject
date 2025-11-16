@@ -61,9 +61,10 @@ import GroupIcon from '@mui/icons-material/Group';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import EmailIcon from '@mui/icons-material/Email';
 import axios from 'axios';
+import io from 'socket.io-client';
 import BurndownChart from '../components/BurndownChart';
 import ChatAnalysisReport from '../components/ChatAnalysisReport';
-import ProjectChat from '../components/ProjectChat';
+import ProjectChatWindow from '../components/ProjectChatWindow';
 
 function MentorDashboard({ user, sectionRefs }) {
   const navigate = useNavigate();
@@ -123,6 +124,56 @@ function MentorDashboard({ user, sectionRefs }) {
       console.error('Error fetching invitations:', err);
     }
   };
+
+  // Setup Socket.IO for real-time notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      console.log('[MentorDashboard] Connected to Socket.IO');
+      socket.emit('join-user-room', { userId: user.id });
+    });
+
+    // Listen for chat notifications
+    socket.on('new-chat-notification', (data) => {
+      console.log('[MentorDashboard] New chat notification:', data);
+      const { projectId, projectName, sender } = data;
+      
+      // Show success message
+      setSuccess(`New message from ${sender.username} in ${projectName}`);
+      setTimeout(() => setSuccess(''), 5000);
+
+      // Show browser notification if supported
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`New message in ${projectName}`, {
+          body: `${sender.username}: ${data.content.substring(0, 50)}${data.content.length > 50 ? '...' : ''}`,
+          icon: '/favicon.ico'
+        });
+      }
+    });
+
+    // Listen for invitations
+    socket.on('new-invitation', (data) => {
+      console.log('[MentorDashboard] New invitation received:', data);
+      setPendingInvitations(prev => [data.invitation, ...prev]);
+      setSuccess(`You've received a new invitation to join "${data.invitation.project.name}"!`);
+      setTimeout(() => setSuccess(''), 8000);
+    });
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
 
   const handleViewProject = async (project) => {
     try {
@@ -1287,7 +1338,7 @@ function MentorDashboard({ user, sectionRefs }) {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Real-time messaging with your project team
                     </Typography>
-                    <ProjectChat 
+                    <ProjectChatWindow 
                       projectId={selectedProject?._id} 
                       projectName={selectedProject?.name}
                       currentUser={user}

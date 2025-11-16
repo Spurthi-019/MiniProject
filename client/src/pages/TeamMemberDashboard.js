@@ -53,7 +53,7 @@ import axios from 'axios';
 import BurndownChart from '../components/BurndownChart';
 import RecommendationWidget from '../components/RecommendationWidget';
 import ChatAnalysisReport from '../components/ChatAnalysisReport';
-import ProjectChat from '../components/ProjectChat';
+import ProjectChatWindow from '../components/ProjectChatWindow';
 import io from 'socket.io-client';
 import { Avatar, Badge } from '@mui/material';
 
@@ -153,6 +153,31 @@ function TeamMemberDashboard({ user, sectionRefs }) {
       setSuccess(`You've received a new invitation to join "${data.invitation.project.name}"!`);
       setTimeout(() => setSuccess(''), 8000);
     });
+
+    // Listen for new chat messages
+    notificationSocket.on('new-chat-notification', (data) => {
+      console.log('💬 New chat notification:', data);
+      const { projectId, projectName, sender } = data;
+      
+      // Increment unread count for this project
+      setUnreadCounts(prev => ({
+        ...prev,
+        [projectId]: (prev[projectId] || 0) + 1
+      }));
+
+      // Show browser notification if supported
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`New message in ${projectName}`, {
+          body: `${sender.username}: ${data.content.substring(0, 50)}${data.content.length > 50 ? '...' : ''}`,
+          icon: '/favicon.ico'
+        });
+      }
+    });
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
 
     return () => {
       notificationSocket.disconnect();
@@ -1337,7 +1362,7 @@ function TeamMemberDashboard({ user, sectionRefs }) {
             </Box>
           </DialogTitle>
           <DialogContent sx={{ p: 0 }}>
-            {selectedProject && <ProjectChat projectId={selectedProject._id} projectName={selectedProject.name} currentUser={user} />}
+            {selectedProject && <ProjectChatWindow projectId={selectedProject._id} projectName={selectedProject.name} currentUser={user} />}
           </DialogContent>
         </Dialog>
 

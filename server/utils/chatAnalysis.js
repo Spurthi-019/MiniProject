@@ -9,8 +9,12 @@ const Project = require('../models/Project');
  */
 const analyzeChatActivity = async (projectId, daysBack = 7) => {
   try {
-    // Validate project exists
-    const project = await Project.findById(projectId).populate('members', 'username email');
+    // Validate project exists and populate ALL participants (members, mentors, team lead)
+    const project = await Project.findById(projectId)
+      .populate('members', 'username email')
+      .populate('mentors', 'username email')
+      .populate('teamLead', 'username email');
+    
     if (!project) {
       throw new Error('Project not found');
     }
@@ -37,18 +41,36 @@ const analyzeChatActivity = async (projectId, daysBack = 7) => {
       ? Math.round(totalMessageLength / totalMessages) 
       : 0;
 
-    // 3. Count messages per member
+    // 3. Count messages per member (including team lead, members, and mentors)
     const memberMessageCounts = {};
     const memberDetails = {};
 
-    // Initialize all project members with zero count
-    project.members.forEach(member => {
-      const memberId = member._id.toString();
-      memberMessageCounts[memberId] = 0;
-      memberDetails[memberId] = {
-        userId: member._id,
-        username: member.username,
-        email: member.email,
+    // Initialize all project participants with zero count
+    const allParticipants = [];
+    
+    // Add team lead
+    if (project.teamLead) {
+      allParticipants.push(project.teamLead);
+    }
+    
+    // Add members
+    if (project.members && project.members.length > 0) {
+      allParticipants.push(...project.members);
+    }
+    
+    // Add mentors
+    if (project.mentors && project.mentors.length > 0) {
+      allParticipants.push(...project.mentors);
+    }
+    
+    // Initialize all participants
+    allParticipants.forEach(participant => {
+      const participantId = participant._id.toString();
+      memberMessageCounts[participantId] = 0;
+      memberDetails[participantId] = {
+        userId: participant._id,
+        username: participant.username,
+        email: participant.email,
         messageCount: 0
       };
     });
@@ -86,7 +108,7 @@ const analyzeChatActivity = async (projectId, daysBack = 7) => {
       : null;
 
     // Calculate activity rate
-    const totalProjectMembers = project.members.length;
+    const totalProjectMembers = allParticipants.length;
     const activeMembers = memberActivity.filter(m => m.messageCount > 0).length;
     const activityRate = totalProjectMembers > 0 
       ? Math.round((activeMembers / totalProjectMembers) * 100) 

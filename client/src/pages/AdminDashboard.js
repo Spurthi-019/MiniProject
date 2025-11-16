@@ -64,9 +64,10 @@ import PeopleIcon from '@mui/icons-material/People';
 import SchoolIcon from '@mui/icons-material/School';
 import EmailIcon from '@mui/icons-material/Email';
 import axios from 'axios';
+import io from 'socket.io-client';
 import BurndownChart from '../components/BurndownChart';
 import RecommendationWidget from '../components/RecommendationWidget';
-import ProjectChat from '../components/ProjectChat';
+import ProjectChatWindow from '../components/ProjectChatWindow';
 import ChatAnalysisReport from '../components/ChatAnalysisReport';
 
 function AdminDashboard({ user, sectionRefs }) {
@@ -110,6 +111,48 @@ function AdminDashboard({ user, sectionRefs }) {
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  // Setup Socket.IO for real-time notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      console.log('[AdminDashboard] Connected to Socket.IO');
+      socket.emit('join-user-room', { userId: user.id });
+    });
+
+    // Listen for chat notifications
+    socket.on('new-chat-notification', (data) => {
+      console.log('[AdminDashboard] New chat notification:', data);
+      const { projectId, projectName, sender } = data;
+      
+      // Show success message
+      setSuccess(`New message from ${sender.username} in ${projectName}`);
+      setTimeout(() => setSuccess(''), 5000);
+
+      // Show browser notification if supported
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`New message in ${projectName}`, {
+          body: `${sender.username}: ${data.content.substring(0, 50)}${data.content.length > 50 ? '...' : ''}`,
+          icon: '/favicon.ico'
+        });
+      }
+    });
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
 
   const fetchProjects = async () => {
     try {
