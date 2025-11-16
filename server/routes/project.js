@@ -433,6 +433,56 @@ router.get('/my-projects', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/projects/user-projects - Get all projects where the authenticated user is involved
+// This route provides granular access by checking teamLead, members, and mentors fields
+router.get('/user-projects', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Query projects where the current user's ID is in teamLead, members, or mentors
+    const projects = await Project.find({
+      $or: [
+        { teamLead: userId },
+        { members: { $in: [userId] } },
+        { mentors: { $in: [userId] } }
+      ]
+    })
+      .populate('teamLead', 'username email role')
+      .populate('members', 'username email role')
+      .populate('mentors', 'username email role')
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    // Add role information for each project to indicate user's role
+    const projectsWithUserRole = projects.map(project => {
+      const projectObj = project.toObject();
+      
+      // Determine user's role in this project
+      let userRole = null;
+      if (project.teamLead._id.toString() === userId) {
+        userRole = 'Team Lead';
+      } else if (project.members.some(member => member._id.toString() === userId)) {
+        userRole = 'Member';
+      } else if (project.mentors.some(mentor => mentor._id.toString() === userId)) {
+        userRole = 'Mentor';
+      }
+      
+      return {
+        ...projectObj,
+        userRoleInProject: userRole
+      };
+    });
+
+    return res.status(200).json({
+      message: 'User projects retrieved successfully',
+      count: projectsWithUserRole.length,
+      projects: projectsWithUserRole
+    });
+  } catch (err) {
+    console.error('Get user projects error:', err);
+    return res.status(500).json({ message: 'Server error fetching user projects' });
+  }
+});
+
 // GET /api/projects/:projectId/metrics - Get project metrics including individual contributions
 router.get('/:projectId/metrics', authMiddleware, async (req, res) => {
   try {

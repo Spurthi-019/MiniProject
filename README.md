@@ -36,6 +36,21 @@ A full-stack collaborative project management system with role-based dashboards,
 
 ### Role-Based Dashboards
 
+#### Main Dashboard (Unified Project View)
+- 🏠 **Centralized Project Hub**: View all projects you're involved in from one place
+- 🎯 **Role Identification**: Automatically shows your role in each project (Team Lead, Member, Mentor)
+- 📊 **Project Cards**: Clean, responsive Material-UI cards with glassmorphism design
+- 👥 **Team Information**: See team lead, member count, and mentor count at a glance
+- 🔍 **View Details**: Comprehensive project information dialog with:
+  - Complete team member list with avatars and emails
+  - Full mentor roster
+  - Project description and team code
+  - Your role highlighted
+- 💬 **Project Chat Access**: Quick access to project communication
+- 🔙 **Navigation**: Easy return to your role-specific dashboard
+- 📱 **Responsive Design**: Mobile-friendly grid layout (1-3 columns)
+- ⚡ **Granular API**: Secure `/api/projects/user-projects` endpoint with role detection
+
 #### Team Member Dashboard
 - 📊 Kanban board with three columns (To Do, In Progress, Done) with modern glassmorphism
 - ✏️ Update task status via dropdown
@@ -45,6 +60,7 @@ A full-stack collaborative project management system with role-based dashboards,
 - 🔔 **Join Team by Code**: Enter any length team code to join projects
 - 📬 **Accept Invitations**: View and manage received invitations
 - ❌ **No Invite Permission**: Cannot invite others (restricted to Team Leads and Mentors)
+- 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
 
 #### Mentor Dashboard
 - 📊 View all projects being mentored
@@ -59,6 +75,7 @@ A full-stack collaborative project management system with role-based dashboards,
 - ✅ **Invite Team Members/Mentors**: Send email invitations to join projects
 - 🔍 **Check Chat Health**: Analyze team communication patterns and engagement
 - 📬 Real-time invitation notifications
+- 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
 
 #### Admin/Team Lead Dashboard
 - 🎛️ Create projects and manage team
@@ -67,6 +84,7 @@ A full-stack collaborative project management system with role-based dashboards,
 - ✅ **Invite Team Members/Mentors**: Send invitations with role selection
 - 📊 Project metrics and team analytics
 - 🔔 Notification center for incoming invitations
+- 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
 
 ### Analytics & Metrics
 - 📊 Project completion statistics
@@ -369,6 +387,42 @@ GET /api/projects/my-projects
 Authorization: Bearer <token>
 ```
 **Response:** Returns all projects where user is team lead, member, or mentor
+
+#### Get User Projects (Granular Access)
+```http
+GET /api/projects/user-projects
+Authorization: Bearer <token>
+```
+**Response:** Returns all projects with granular role detection
+- Automatically detects user's role in each project
+- Includes `userRoleInProject` field (Team Lead, Member, or Mentor)
+- Populates full team lead, members, and mentors details
+- Sorted by creation date (newest first)
+
+**Example Response:**
+```json
+{
+  "message": "User projects retrieved successfully",
+  "count": 3,
+  "projects": [
+    {
+      "_id": "...",
+      "name": "E-Commerce Website",
+      "description": "Online shopping platform",
+      "teamCode": "443266",
+      "teamLead": {
+        "_id": "...",
+        "username": "admin_john",
+        "email": "admin@example.com",
+        "role": "Admin/Team Lead"
+      },
+      "members": [...],
+      "mentors": [...],
+      "userRoleInProject": "Team Lead"
+    }
+  ]
+}
+```
 
 #### Get Project Metrics
 ```http

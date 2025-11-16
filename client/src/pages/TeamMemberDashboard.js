@@ -607,6 +607,30 @@ function TeamMemberDashboard({ user, sectionRefs }) {
                 >
                   Join Team
                 </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<DashboardIcon />}
+                  onClick={() => navigate('/main')}
+                  sx={{ 
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    color: 'white',
+                    fontWeight: 600,
+                    px: 3,
+                    py: 1,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    boxShadow: '0 4px 14px rgba(240, 147, 251, 0.4)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #f5576c 0%, #f093fb 100%)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 6px 20px rgba(240, 147, 251, 0.6)'
+                    }
+                  }}
+                >
+                  Go to Main Dashboard
+                </Button>
               </Box>
             </Box>
           </Paper>

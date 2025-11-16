@@ -452,30 +452,56 @@ function MentorDashboard({ user, sectionRefs }) {
               boxShadow: '0 4px 20px rgba(102, 126, 234, 0.2)'
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.3)', width: 48, height: 48 }}>
-                {user.username?.charAt(0).toUpperCase()}
-              </Avatar>
-              <Box>
-                <Typography variant="h6" fontWeight="600" sx={{ lineHeight: 1.2 }}>
-                  Welcome back, {user.username}!
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
-                  <Chip 
-                    label={user.role} 
-                    size="small" 
-                    sx={{ 
-                      bgcolor: 'rgba(255,255,255,0.2)', 
-                      color: 'white',
-                      height: 20,
-                      fontSize: '0.7rem'
-                    }} 
-                  />
-                  <Typography variant="caption" sx={{ opacity: 0.9, lineHeight: '20px' }}>
-                    {user.email}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.3)', width: 48, height: 48 }}>
+                  {user.username?.charAt(0).toUpperCase()}
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" fontWeight="600" sx={{ lineHeight: 1.2 }}>
+                    Welcome back, {user.username}!
                   </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                    <Chip 
+                      label={user.role} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.2)', 
+                        color: 'white',
+                        height: 20,
+                        fontSize: '0.7rem'
+                      }} 
+                    />
+                    <Typography variant="caption" sx={{ opacity: 0.9, lineHeight: '20px' }}>
+                      {user.email}
+                    </Typography>
+                  </Box>
                 </Box>
               </Box>
+              <Button
+                variant="contained"
+                startIcon={<DashboardIcon />}
+                onClick={() => navigate('/main')}
+                sx={{ 
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  fontWeight: 600,
+                  px: 3,
+                  py: 1,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  backdropFilter: 'blur(10px)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    background: 'rgba(255, 255, 255, 0.3)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 20px rgba(255, 255, 255, 0.3)'
+                  }
+                }}
+              >
+                Go to Main Dashboard
+              </Button>
             </Box>
           </Paper>
         </div>

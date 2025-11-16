@@ -438,15 +438,42 @@ The invitee will see this invitation when they log in to their dashboard.
         )}
 
         <Paper elevation={2} sx={{ p: 2.5, mb: 2 }}>
-          <Typography variant="h5" gutterBottom>
-            Welcome, {user.username}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Role: {user.role}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Email: {user.email}
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <Box>
+              <Typography variant="h5" gutterBottom>
+                Welcome, {user.username}!
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Role: {user.role}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Email: {user.email}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<DashboardIcon />}
+              onClick={() => navigate('/main')}
+              sx={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                fontWeight: 600,
+                px: 3,
+                py: 1,
+                borderRadius: 2,
+                textTransform: 'none',
+                boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 6px 20px rgba(102, 126, 234, 0.6)'
+                }
+              }}
+            >
+              Go to Main Dashboard
+            </Button>
+          </Box>
         </Paper>
 
         {/* Action Cards */}
