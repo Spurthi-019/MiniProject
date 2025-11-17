@@ -31,7 +31,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Start the service
-Write-Host "`n✅ Starting FastAPI server on http://localhost:8000" -ForegroundColor Green
-Write-Host "📊 AI Service ready for chat analysis!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Starting FastAPI server on http://localhost:8000" -ForegroundColor Green
+Write-Host "AI Service ready for chat analysis!" -ForegroundColor Green
 Write-Host ""
 python main.py

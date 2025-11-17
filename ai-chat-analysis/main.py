@@ -111,8 +111,9 @@ sia = SentimentIntensityAnalyzer()
 nlp = spacy.load("en_core_web_sm")
 
 # Load the 'summarization' pipeline from transformers
-# Use the 't5-small' model, which is a good balance of size and performance
-summarizer = pipeline("summarization", model="t5-small")
+# Commented out for faster startup - using simple summarization instead
+# summarizer = pipeline("summarization", model="t5-small")
+summarizer = None  # Will use simple text truncation
 
 # --- Helper Functions for Advanced Analysis ---
 
@@ -310,14 +311,14 @@ def analyze_chat(data: AnalysisInput):
     # Use Counter to find the 5 most common keywords
     top_keywords = [word for word, count in Counter(keywords).most_common(5)]
 
-    # 4. Summarization (Transformers)
-    # Generate a summary. Set max_length to 100 and min_length to 25.
-    # Ensure text is not too short for the summarizer
-    if len(full_text.split()) > 30:
+    # 4. Summarization (Simple - faster than Transformers)
+    # Use simple text summarization instead of AI model
+    if summarizer and len(full_text.split()) > 30:
         summary_result = summarizer(full_text, max_length=100, min_length=25, do_sample=False)
         ai_summary = summary_result[0]['summary_text']
     else:
-        ai_summary = full_text[:200]  # Use first 200 chars if text is too short
+        # Simple summarization: first 200 chars
+        ai_summary = full_text[:200] + "..." if len(full_text) > 200 else full_text
 
     # 5. Return the final report
     return WeeklyReport(
