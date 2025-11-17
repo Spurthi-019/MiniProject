@@ -1,8 +1,10 @@
 const Message = require('../models/Message');
 const Project = require('../models/Project');
+const aiServiceClient = require('./aiServiceClient');
 
 /**
  * Analyze chat activity for a project within a specified time window
+ * Now enhanced with AI-powered insights when available
  * @param {String} projectId - The project ID to analyze
  * @param {Number} daysBack - Number of days to look back (default: 7)
  * @returns {Object} Chat analysis metrics
@@ -119,6 +121,48 @@ const analyzeChatActivity = async (projectId, daysBack = 7) => {
       ? (totalMessages / daysBack).toFixed(2) 
       : 0;
 
+    // Try to get AI-powered insights
+    let aiInsights = null;
+    let aiReport = null;
+    
+    if (messages.length > 0) {
+      const aiAvailable = await aiServiceClient.isAvailable();
+      
+      if (aiAvailable) {
+        try {
+          // Format messages for AI service
+          const aiMessages = aiServiceClient.formatMessagesForAI(messages);
+          
+          // Get comprehensive AI report
+          const weeklyReport = await aiServiceClient.generateWeeklyReport(aiMessages);
+          
+          if (weeklyReport.success) {
+            aiReport = weeklyReport.data;
+            
+            // Extract AI insights
+            aiInsights = {
+              sentiment: aiReport.overall_sentiment,
+              momentum: aiReport.project_momentum,
+              technicalTopics: aiReport.technical_topics || [],
+              keyDiscussions: aiReport.key_discussions || [],
+              recommendations: aiReport.recommendations || [],
+              topContributors: aiReport.top_contributors ? aiReport.top_contributors.map(c => ({
+                username: c.username,
+                technicalScore: c.technical_contribution_score,
+                codeMessages: c.code_related_messages,
+                problemSolving: c.problem_solving_count,
+                helpGiven: c.help_given_count,
+                quality: c.contribution_quality,
+                isActive: c.is_active_contributor
+              })) : []
+            };
+          }
+        } catch (error) {
+          console.warn('AI service error, falling back to basic analysis:', error.message);
+        }
+      }
+    }
+
     return {
       success: true,
       timeWindow: {
@@ -142,7 +186,12 @@ const analyzeChatActivity = async (projectId, daysBack = 7) => {
         messageCount: leastActiveMember.messageCount
       } : null,
       allMemberActivity: memberActivity,
-      insights: generateInsights(totalMessages, activeMembers, totalProjectMembers, messagesPerDay, daysBack)
+      insights: generateInsights(totalMessages, activeMembers, totalProjectMembers, messagesPerDay, daysBack),
+      
+      // AI-Enhanced Data (when available)
+      aiInsights: aiInsights,
+      aiReport: aiReport,
+      aiEnabled: aiInsights !== null
     };
 
   } catch (error) {
