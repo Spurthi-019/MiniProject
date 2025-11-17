@@ -826,4 +826,37 @@ MIT License - feel free to use this project for learning and development.
 
 ---
 
-**Built with ❤️ using the MERN stack**
+## 🤖 AI Chat Analysis Service (Python/FastAPI)
+
+The project includes an intelligent NLP-powered chat analysis service for generating weekly mentor reports. This service analyzes project group chats to provide actionable insights.
+
+### Features
+- ✨ **Advanced NLP Analysis**: Identifies technical vs casual conversations, problem-solving, and helping behavior
+- 🎯 **Smart Contribution Scoring**: Technical contribution metrics (0-100 score) with quality classification
+- 📊 **Weekly Mentor Reports**: Comprehensive activity summaries with ranked contributors and recommendations
+
+### Quick Start (Python Service)
+```bash
+# Setup virtual environment
+cd ai-analysis-service  # or wherever the Python service is located
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+
+# Start the server
+python main.py
+```
+
+### API Endpoint
+```bash
+POST http://localhost:8000/weekly_report
+```
+
+For full AI service documentation, see the **AI Chat Analysis** section in the Python service directory.
+
+---
+
+**Built with ❤️ using the MERN stack + AI/NLP**
