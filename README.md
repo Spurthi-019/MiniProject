@@ -94,9 +94,10 @@ A full-stack collaborative project management system with role-based dashboards,
 - 📝 Create and assign tasks to members
 - 👥 View team composition and roles
 - ✅ **Invite Team Members/Mentors**: Send invitations with role selection
-- � **Integrated Chat**: ProjectChatWindow in project detail dialogs
+- 💬 **Integrated Chat**: ProjectChatWindow in project detail dialogs
 - 🔔 **Real-time Notifications**: Chat alerts and invitation updates
-- �📊 Project metrics and team analytics
+- 📊 Project metrics and team analytics
+- 🤖 **AI Project Recommendations**: Real-time insights and deadline alerts
 - 🔔 Notification center for incoming invitations
 - 🏠 **Go to Main Dashboard**: Quick navigation to unified project view
 
@@ -117,6 +118,22 @@ A full-stack collaborative project management system with role-based dashboards,
   - Member participation rates
   - Communication pattern analysis
   - Engagement metrics
+
+### 🤖 Real-Time AI Recommendations (NEW!)
+- 🎯 **Intelligent Project Analysis**: Real-time analysis of project health using actual MongoDB data
+- ⏰ **Automatic Deadline Monitoring**: Background service runs every 6 hours detecting approaching/overdue tasks
+- 🚨 **Smart Risk Assessment**: Identifies project risks with severity levels (HIGH/MEDIUM/LOW) and mitigation strategies
+- 📋 **Prioritized Action Items**: AI-generated next steps based on project state, deadlines, and team capacity
+- 👥 **Team Collaboration Insights**: Workload distribution suggestions and unassigned task alerts
+- 🔧 **Process Improvement Recommendations**: Workflow optimization tips and best practices
+- 📅 **Timeline Predictions**: Estimates completion dates with confidence levels and "At Risk" flags
+- 📊 **Comprehensive Metrics Dashboard**: Completion %, velocity, overdue tasks, team activity
+- 🔔 **Deadline Alert Categories**:
+  - 🚨 CRITICAL: Overdue tasks
+  - ⚠️ HIGH: Due within 24 hours
+  - ℹ️ MEDIUM: Due within 48 hours
+- 🔄 **NOT Hardcoded**: All recommendations generated from live project data analysis
+- 🎨 **Google Gemini AI Integration**: With intelligent rule-based fallback system
 
 ### Real-Time Features
 - 🔔 **Instant Notifications**: Socket.IO powered real-time updates
@@ -154,6 +171,8 @@ A full-stack collaborative project management system with role-based dashboards,
 - **Database:** MongoDB with Mongoose 8.19.3
 - **Authentication:** JWT (jsonwebtoken), bcryptjs
 - **Real-time:** Socket.IO 4.8.1
+- **AI Integration:** Google Generative AI (Gemini) 0.21.0
+- **Email:** Nodemailer 6.9.16
 - **Dev Tools:** nodemon 3.1.10, dotenv 17.2.3, cors 2.8.5
 
 ## 📦 Installation
@@ -178,6 +197,8 @@ npm install
 echo MONGODB_URI='mongodb://localhost:27017/projectsync_db' > server/.env
 echo JWT_SECRET='your-strong-secret-key-here' >> server/.env
 echo PORT=5000 >> server/.env
+echo ENABLE_DEADLINE_ALERTS=true >> server/.env
+echo GEMINI_API_KEY= >> server/.env
 ```
 
 ### 3. Frontend Setup
@@ -393,6 +414,74 @@ Content-Type: application/json
 **Response:** Returns invitation details and sends real-time notification to invitee
 **Note:** Invitation expires after 7 days
 
+#### Get Project Recommendations (NEW!)
+```http
+GET /api/projects/:projectId/recommendations
+Authorization: Bearer <token>
+```
+**Response:** Returns comprehensive AI-generated recommendations including:
+- `summary`: Project health overview
+- `nextSteps`: Prioritized action items (array)
+- `risks`: Risk assessment with severity and mitigation strategies
+- `deadlineAlerts`: Tasks categorized by urgency (CRITICAL/HIGH/MEDIUM)
+- `teamSuggestions`: Collaboration improvement tips
+- `processImprovements`: Workflow optimization recommendations
+- `timelinePrediction`: Completion estimates with confidence levels
+- `metrics`: Comprehensive project metrics (completion %, velocity, overdue tasks, etc.)
+- `source`: "gemini-ai" or "rule-based" (indicates AI engine used)
+
+**Example Response:**
+```json
+{
+  "summary": "Project is 33% complete but at risk. 1 overdue tasks require immediate attention.",
+  "nextSteps": [
+    "Immediately address 1 overdue task(s)",
+    "Prioritize 2 task(s) due in the next 7 days",
+    "Complete 2 in-progress task(s) before starting new work"
+  ],
+  "risks": [
+    {
+      "risk": "1 task(s) are overdue",
+      "severity": "HIGH",
+      "mitigation": "Re-evaluate deadlines or increase team capacity"
+    }
+  ],
+  "deadlineAlerts": [
+    {
+      "task": "Design Database Schema",
+      "deadline": "2025-11-15",
+      "daysRemaining": -2,
+      "urgency": "CRITICAL",
+      "assignedTo": "Unassigned"
+    }
+  ],
+  "teamSuggestions": ["Distribute unassigned tasks evenly among team members"],
+  "processImprovements": ["Use task dependencies to identify critical path"],
+  "timelinePrediction": {
+    "onTrack": false,
+    "estimatedCompletion": "Cannot estimate completion time",
+    "confidence": "LOW",
+    "reasoning": "Project is at risk due to overdue tasks"
+  },
+  "metrics": {
+    "totalTasks": 6,
+    "completedTasks": 2,
+    "completionPercentage": 33,
+    "overdueTasks": 1,
+    "weeklyVelocity": 0,
+    "unassignedTasks": 4
+  }
+}
+```
+
+**Features:**
+- Real-time analysis of project data from MongoDB
+- Automatic deadline categorization (CRITICAL < 0 days, HIGH < 1 day, MEDIUM < 2 days)
+- Intelligent risk assessment with specific mitigation strategies
+- NOT hardcoded - analyzes actual project state
+- Background deadline service runs every 6 hours
+- Google Gemini AI integration with rule-based fallback
+
 #### Get My Invitations
 ```http
 GET /api/projects/invitations
@@ -559,6 +648,9 @@ GET /api/auth/users
 - `teamLead` (User reference)
 - `members` (array of User references)
 - `mentors` (array of User references)
+- `startDate` (Date, default: Date.now) - For timeline tracking
+- `endDate` (Date) - Project deadline
+- `status` (enum: planning, active, completed, on-hold, default: active)
 
 ### Task
 - `title` (required)
@@ -699,23 +791,30 @@ Mini Project/
 ├── server/
 │   ├── models/
 │   │   ├── User.js                 # User schema with bcrypt
-│   │   ├── Project.js              # Project schema with teamCode
+│   │   ├── Project.js              # Project schema with teamCode, startDate, endDate
 │   │   ├── Task.js                 # Task schema with status
 │   │   ├── Message.js              # Chat message schema
 │   │   └── Invitation.js           # Invitation schema with TTL
 │   ├── routes/
 │   │   ├── auth.js                 # Auth routes (register, login, users)
-│   │   ├── project.js              # Project routes (create, join, metrics, chat-metrics)
+│   │   ├── project.js              # Project routes (create, join, metrics, recommendations)
 │   │   ├── task.js                 # Task routes (create, get, update status)
 │   │   └── chat.js                 # Chat routes (send, get messages, delete)
 │   ├── utils/
+│   │   ├── geminiAI.js             # AI recommendation engine (515 lines)
 │   │   ├── chatAnalysis.js         # 7-day chat metrics and insights
 │   │   └── aiAnalysis.js           # Project health analysis
+│   ├── services/
+│   │   └── deadlineAlerts.js       # Background deadline monitoring (runs every 6 hours)
 │   ├── authMiddleware.js           # JWT verification & role authorization
-│   ├── server.js                   # Express app with Socket.IO integration
+│   ├── server.js                   # Express app with Socket.IO + Deadline Service
+│   ├── showRecommendations.js      # Demo script for AI recommendations
+│   ├── quickTest.js                # Quick functionality test
 │   └── .env                        # Environment variables
 ├── create-test-data.ps1            # Test data creation script
 ├── setup-test-data.ps1             # Simplified test data script
+├── AI_RECOMMENDATIONS_README.md    # Complete AI features documentation
+├── CHANGES_SUMMARY.md              # Summary of all recent changes
 ├── TESTING_GUIDE.md                # Comprehensive testing guide
 ├── QUICK_TEST_GUIDE.md             # Quick testing reference
 ├── package.json                    # Backend dependencies
@@ -726,6 +825,83 @@ Mini Project/
 ## Testing Examples (PowerShell)
 
 ```powershell
+# 1. Register first user (becomes Admin/Team Lead)
+Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/auth/register" -Body '{"username":"alice","email":"alice@example.com","password":"pass123"}' -ContentType "application/json"
+
+# 2. Login and save token
+$response = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/auth/login" -Body '{"login":"alice@example.com","password":"pass123"}' -ContentType "application/json"
+$token = $response.token
+$headers = @{ Authorization = "Bearer $token" }
+
+# 3. Create a project
+$project = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/projects" -Headers $headers -Body '{"name":"My Project","description":"Test project"}' -ContentType "application/json"
+$teamCode = $project.project.teamCode
+$projectId = $project.project._id
+
+# 4. Create a task
+Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/tasks" -Headers $headers -Body "{`"title`":`"Setup backend`",`"project`":`"$projectId`",`"status`":`"In Progress`"}" -ContentType "application/json"
+
+# 5. Get all tasks for project
+Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/tasks/project/$projectId" -Headers $headers
+
+# 6. Get AI Recommendations (NEW!)
+Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/projects/$projectId/recommendations" -Headers $headers
+
+# 7. Test AI Recommendations Script
+cd server
+node showRecommendations.js    # Comprehensive feature demonstration
+node quickTest.js              # Quick functionality test
+```
+
+### Testing AI Recommendations
+
+The system includes dedicated test scripts to demonstrate real-time AI features:
+
+**Comprehensive Demo:**
+```bash
+cd server
+node showRecommendations.js
+```
+This displays:
+- Project metrics (completion %, velocity, overdue tasks)
+- Deadline alerts with urgency levels
+- Risk assessment with mitigation strategies
+- Prioritized next steps
+- Team collaboration suggestions
+- Process improvements
+- Timeline predictions
+
+**Quick Test:**
+```bash
+cd server
+node quickTest.js
+```
+Verifies API functionality and shows sample recommendations.
+
+**Expected Output:**
+```
+📊 PROJECT METRICS
+  Completion:    33%
+  Tasks:         2/6
+  Velocity:      0 tasks/week
+  Overdue:       1
+
+⚠️ DEADLINE ALERTS
+  🚨 CRITICAL: Design Database Schema (2 days overdue)
+  ⚠️ HIGH: Implement Shopping Cart (Due in 1 day)
+
+🚨 PROJECT RISKS
+  1. [HIGH] 1 task(s) are overdue
+     💡 Mitigation: Re-evaluate deadlines
+
+📋 NEXT STEPS (PRIORITIZED)
+  1. Immediately address 1 overdue task(s)
+  2. Prioritize 2 task(s) due in the next 7 days
+  3. Complete 2 in-progress task(s)
+```
+
+```powershell
+# Legacy testing examples
 # 1. Register first user (becomes Admin/Team Lead)
 Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/auth/register" -Body '{"username":"alice","email":"alice@example.com","password":"pass123"}' -ContentType "application/json"
 
@@ -795,6 +971,9 @@ Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/tasks/project/$pro
 MONGODB_URI=<your-mongodb-connection-string>
 JWT_SECRET=<your-strong-secret-key>
 PORT=5000
+ENABLE_DEADLINE_ALERTS=true
+GEMINI_API_KEY=<your-gemini-api-key> (optional - system uses rule-based fallback)
+EMAIL_ALERTS_ENABLED=false (optional)
 ```
 
 ## 📊 Database Schema
