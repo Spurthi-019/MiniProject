@@ -6,6 +6,7 @@ const Task = require('../models/Task');
 const Invitation = require('../models/Invitation');
 const { analyzeProjectHealth, getPrioritizedTasks } = require('../utils/aiAnalysis');
 const { analyzeChatActivity, getChatActivityTrends } = require('../utils/chatAnalysis');
+const geminiAI = require('../utils/geminiAI');
 
 /**
  * Generate a unique 6-digit teamCode
@@ -785,11 +786,10 @@ router.get('/:projectId/prioritized-tasks', authMiddleware, async (req, res) => 
   }
 });
 
-// GET /api/projects/:projectId/recommendations - Get AI-powered project recommendations
+// GET /api/projects/:projectId/recommendations - Get AI-powered project recommendations (Real-time with Gemini)
 router.get('/:projectId/recommendations', authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
-    const suggestedTasksLimit = parseInt(req.query.limit) || 5;
 
     // Find project and verify access
     const project = await Project.findById(projectId);
@@ -808,56 +808,71 @@ router.get('/:projectId/recommendations', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'You do not have access to this project' });
     }
 
-    // Get health analysis for delay warnings
-    const healthAnalysis = await analyzeProjectHealth(projectId);
-
-    // Get prioritized tasks for next suggested tasks
-    const prioritizedTasks = await getPrioritizedTasks(projectId, suggestedTasksLimit);
-
-    // Prepare next suggested tasks
-    const nextSuggestedTasks = prioritizedTasks.map(task => ({
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      deadline: task.deadline,
-      assignedTo: task.assignedTo,
-      priorityLevel: task.priorityLevel,
-      reasons: task.reasons
-    }));
-
-    // Prepare project delay warning
-    const hasDelayRisk = healthAnalysis.isAtRisk;
-    const delayWarning = {
-      isDelayed: hasDelayRisk,
-      riskLevel: healthAnalysis.riskLevel,
-      message: hasDelayRisk 
-        ? `⚠️ Project is at ${healthAnalysis.riskLevel} risk of delays. ${healthAnalysis.riskFactors.join('. ')}`
-        : '✅ Project is on track with no significant delay risks.',
-      riskFactors: healthAnalysis.riskFactors,
-      recommendations: healthAnalysis.recommendations
-    };
-
-    // Additional insights
-    const insights = {
-      urgentTasksCount: healthAnalysis.urgentTasks.length,
-      teamVelocity: healthAnalysis.healthMetrics.teamVelocity,
-      completionPercentage: healthAnalysis.healthMetrics.completionPercentage,
-      estimatedDaysToComplete: healthAnalysis.healthMetrics.estimatedDaysToComplete
-    };
+    // Generate real-time AI recommendations using Gemini
+    const recommendations = await geminiAI.generateRecommendations(projectId);
 
     return res.status(200).json({
-      message: 'Project recommendations generated successfully',
+      success: true,
+      message: 'AI-powered recommendations generated successfully',
       projectId,
-      projectName: healthAnalysis.projectName,
-      nextSuggestedTasks,
-      projectDelayWarning: delayWarning,
-      insights,
+      projectName: project.name,
+      recommendations,
+      aiEnabled: geminiAI.isAvailable(),
       generatedAt: new Date().toISOString()
     });
   } catch (err) {
     console.error('Get project recommendations error:', err);
-    return res.status(500).json({ message: 'Server error generating project recommendations' });
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      projectId: req.params.projectId
+    });
+    return res.status(500).json({ 
+      message: 'Server error generating project recommendations',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
+// GET /api/projects/:projectId/my-recommendations - Get personalized task recommendations for current user
+router.get('/:projectId/my-recommendations', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user.id;
+
+    // Find project and verify access
+    const project = await Project.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access
+    const isTeamLead = project.teamLead.toString() === userId;
+    const isMember = project.members.some(m => m.toString() === userId);
+    const isMentor = project.mentors.some(m => m.toString() === userId);
+
+    if (!isTeamLead && !isMember && !isMentor) {
+      return res.status(403).json({ message: 'You do not have access to this project' });
+    }
+
+    // Generate personalized recommendations
+    const personalRecommendations = await geminiAI.generateMemberRecommendations(projectId, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Personal recommendations generated successfully',
+      projectId,
+      userId,
+      recommendations: personalRecommendations,
+      generatedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Get personal recommendations error:', err);
+    return res.status(500).json({ 
+      message: 'Server error generating personal recommendations',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 

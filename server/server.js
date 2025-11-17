@@ -12,6 +12,9 @@ const projectRoutes = require('./routes/project');
 const taskRoutes = require('./routes/task');
 const chatRoutes = require('./routes/chat');
 
+// Services
+const deadlineAlertService = require('./services/deadlineAlerts');
+
 const app = express();
 const server = http.createServer(app);
 
@@ -160,4 +163,13 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Socket.IO ready for connections`);
+  
+  // Start deadline alert service after server starts
+  if (process.env.ENABLE_DEADLINE_ALERTS === 'true') {
+    setTimeout(() => {
+      deadlineAlertService.start();
+    }, 5000); // Start after 5 seconds to ensure DB is connected
+  } else {
+    console.log('ℹ️ Deadline alerts are disabled. Set ENABLE_DEADLINE_ALERTS=true to enable.');
+  }
 });

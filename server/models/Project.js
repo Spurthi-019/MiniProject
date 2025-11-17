@@ -37,12 +37,21 @@ const ProjectSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     }
-  ]
+  ],
+  startDate: {
+    type: Date,
+    default: Date.now
+  },
+  endDate: {
+    type: Date
+  },
+  status: {
+    type: String,
+    enum: ['planning', 'active', 'completed', 'on-hold'],
+    default: 'active'
+  }
 }, {
   timestamps: true
 });
-
-// ensure index on teamCode
-ProjectSchema.index({ teamCode: 1 }, { unique: true });
 
 module.exports = mongoose.models.Project || mongoose.model('Project', ProjectSchema);
