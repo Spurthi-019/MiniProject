@@ -9,6 +9,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
@@ -16,6 +17,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.3",
+    "nodemailer": "^7.0.10",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },

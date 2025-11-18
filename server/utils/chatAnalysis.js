@@ -139,19 +139,35 @@ const analyzeChatActivity = async (projectId, daysBack = 7) => {
           if (weeklyReport.success) {
             aiReport = weeklyReport.data;
             
-            // Extract AI insights
+            // Extract comprehensive AI insights with all trained metrics
             aiInsights = {
+              // Core sentiment & momentum
               sentiment: aiReport.overall_sentiment,
               momentum: aiReport.project_momentum,
+              
+              // NEW: Trained model metrics
+              tasksCompleted: aiReport.tasks_completed || 0,
+              blockersReported: aiReport.blockers_reported || 0,
+              progressUpdates: aiReport.progress_updates || 0,
+              collaborationScore: aiReport.collaboration_score || 0,
+              
+              // Content analysis
               technicalTopics: aiReport.technical_topics || [],
               keyDiscussions: aiReport.key_discussions || [],
               recommendations: aiReport.recommendations || [],
+              activitySummary: aiReport.activity_summary || '',
+              reportPeriod: aiReport.report_period || '',
+              
+              // Enhanced contributor metrics
               topContributors: aiReport.top_contributors ? aiReport.top_contributors.map(c => ({
                 username: c.username,
                 technicalScore: c.technical_contribution_score,
                 codeMessages: c.code_related_messages,
                 problemSolving: c.problem_solving_count,
                 helpGiven: c.help_given_count,
+                questionCount: c.question_count,
+                avgMessageLength: c.avg_message_length,
+                technicalKeywords: c.technical_keywords_used || [],
                 quality: c.contribution_quality,
                 isActive: c.is_active_contributor
               })) : []

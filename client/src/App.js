@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
@@ -8,11 +8,10 @@ import Dashboard from './pages/Dashboard';
 import MainDashboard from './pages/MainDashboard';
 import RecommendationWidgetDemo from './pages/RecommendationWidgetDemo';
 import ShadcnExample from './components/ShadcnExample';
-import theme from './theme'; // Import custom dark theme
+import theme from './theme';
 import './App.css';
 
 function App() {
-  // Enable dark mode by default
   useEffect(() => {
     document.documentElement.classList.add('dark');
   }, []);

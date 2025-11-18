@@ -9,8 +9,10 @@ import {
   Paper,
   Alert,
   Link,
-  CircularProgress
+  CircularProgress,
+  IconButton
 } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import axios from 'axios';
 
 function Login() {
@@ -76,7 +78,15 @@ function Login() {
   return (
     <Container maxWidth="sm">
       <Box sx={{ marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
+        <Paper elevation={3} sx={{ padding: 4, width: '100%', position: 'relative' }}>
+          <IconButton
+            component={RouterLink}
+            to="/"
+            sx={{ position: 'absolute', top: 16, left: 16 }}
+            aria-label="back to home"
+          >
+            <ArrowBack />
+          </IconButton>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
             Login
           </Typography>

@@ -29,6 +29,14 @@ import warnings
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
+# Import CSV for loading synthetic data
+import csv
+import os
+from pathlib import Path
+
+# Import re for pattern matching
+import re
+
 # --- 2. Suppress Warnings ---
 # Suppress the specific transformers warning about model length
 warnings.filterwarnings("ignore", message=".*sequence length is longer than.*")
@@ -100,6 +108,10 @@ class WeeklyMentorReport(BaseModel):
     technical_topics: List[str]
     recommendations: List[str]
     activity_summary: str
+    tasks_completed: int  # New field
+    blockers_reported: int  # New field
+    progress_updates: int  # New field
+    collaboration_score: float  # New field (0-100)
 
 # --- 4. Load AI Models (Global variables) ---
 # These models are loaded once when the app starts.
@@ -114,6 +126,151 @@ nlp = spacy.load("en_core_web_sm")
 # Commented out for faster startup - using simple summarization instead
 # summarizer = pipeline("summarization", model="t5-small")
 summarizer = None  # Will use simple text truncation
+
+# --- Helper Functions for Advanced Analysis ---
+
+# Global variables for trained patterns
+TRAINED_PATTERNS = {
+    'task_completion': [],
+    'blockers': [],
+    'progress_updates': [],
+    'collaboration': []
+}
+
+# Statistics from training data
+TRAINING_STATS = {
+    'total_messages': 0,
+    'avg_message_length': 0,
+    'common_patterns': {},
+    'user_activity_distribution': {}
+}
+
+def load_synthetic_data(csv_path: str = "synthetic_chats.csv") -> List[ChatMessage]:
+    """
+    Load synthetic chat data from CSV file for training.
+    Returns list of ChatMessage objects.
+    """
+    messages = []
+    csv_file = Path(__file__).parent / csv_path
+    
+    if not csv_file.exists():
+        print(f"Warning: CSV file not found at {csv_file}")
+        return messages
+    
+    try:
+        with open(csv_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                messages.append(ChatMessage(
+                    username=row['sender_username'],
+                    text=row['text'],
+                    timestamp=row.get('timestamp')
+                ))
+        print(f"✅ Loaded {len(messages)} messages from {csv_path}")
+    except Exception as e:
+        print(f"Error loading CSV: {e}")
+    
+    return messages
+
+def train_on_synthetic_data():
+    """
+    Train pattern recognition on synthetic data.
+    Identifies common patterns for task completion, blockers, progress updates, etc.
+    """
+    global TRAINED_PATTERNS, TRAINING_STATS
+    
+    print("🎓 Training on synthetic data...")
+    messages = load_synthetic_data()
+    
+    if not messages:
+        print("⚠️  No training data available")
+        return
+    
+    # Update training stats
+    TRAINING_STATS['total_messages'] = len(messages)
+    word_counts = [len(msg.text.split()) for msg in messages]
+    TRAINING_STATS['avg_message_length'] = sum(word_counts) / len(word_counts)
+    
+    # Extract patterns using NLP
+    task_completion_patterns = []
+    blocker_patterns = []
+    progress_patterns = []
+    collaboration_patterns = []
+    
+    # Common technical terms distribution
+    all_text = " ".join([msg.text for msg in messages[:1000]])  # Sample for performance
+    doc = nlp(all_text)
+    
+    # Extract common patterns
+    for msg in messages[:500]:  # Sample for training
+        text_lower = msg.text.lower()
+        
+        # Task completion indicators
+        if any(word in text_lower for word in ['completed', 'finished', 'done', 'merged', 'deployed', 'ready']):
+            task_completion_patterns.append(text_lower)
+        
+        # Blocker indicators
+        if any(word in text_lower for word in ['blocked', 'stuck', 'issue', 'problem', 'error', 'crash', 'fail']):
+            blocker_patterns.append(text_lower)
+        
+        # Progress indicators
+        if any(word in text_lower for word in ['working on', 'started', 'in progress', 'update', 'pushed']):
+            progress_patterns.append(text_lower)
+        
+        # Collaboration indicators
+        if any(word in text_lower for word in ['help', 'review', 'check', 'thanks', 'lgtm', 'looks good']):
+            collaboration_patterns.append(text_lower)
+    
+    # Store patterns
+    TRAINED_PATTERNS['task_completion'] = task_completion_patterns[:50]
+    TRAINED_PATTERNS['blockers'] = blocker_patterns[:50]
+    TRAINED_PATTERNS['progress_updates'] = progress_patterns[:50]
+    TRAINED_PATTERNS['collaboration'] = collaboration_patterns[:50]
+    
+    # Extract common keywords
+    keywords = [token.lemma_.lower() for token in doc if not token.is_stop and not token.is_punct and token.is_alpha]
+    TRAINING_STATS['common_patterns'] = dict(Counter(keywords).most_common(30))
+    
+    # User activity distribution
+    user_message_counts = Counter([msg.username for msg in messages])
+    TRAINING_STATS['user_activity_distribution'] = dict(user_message_counts.most_common(20))
+    
+    print(f"✅ Training complete!")
+    print(f"   - Task completion patterns: {len(TRAINED_PATTERNS['task_completion'])}")
+    print(f"   - Blocker patterns: {len(TRAINED_PATTERNS['blockers'])}")
+    print(f"   - Progress patterns: {len(TRAINED_PATTERNS['progress_updates'])}")
+    print(f"   - Collaboration patterns: {len(TRAINED_PATTERNS['collaboration'])}")
+    print(f"   - Common keywords tracked: {len(TRAINING_STATS['common_patterns'])}")
+
+def enhanced_message_classification(text: str, doc) -> Dict:
+    """
+    Enhanced classification using trained patterns.
+    """
+    text_lower = text.lower()
+    
+    # Use trained patterns for better classification
+    task_completion_score = sum(1 for pattern in TRAINED_PATTERNS['task_completion'] 
+                                if any(word in text_lower for word in pattern.split()[:3]))
+    
+    blocker_score = sum(1 for pattern in TRAINED_PATTERNS['blockers'] 
+                       if any(word in text_lower for word in pattern.split()[:3]))
+    
+    progress_score = sum(1 for pattern in TRAINED_PATTERNS['progress_updates'] 
+                        if any(word in text_lower for word in pattern.split()[:3]))
+    
+    collaboration_score = sum(1 for pattern in TRAINED_PATTERNS['collaboration'] 
+                             if any(word in text_lower for word in pattern.split()[:3]))
+    
+    # Original classification
+    base_classification = classify_message_type(text, doc)
+    
+    # Enhanced with training
+    base_classification['task_completed'] = task_completion_score > 0
+    base_classification['has_blocker'] = blocker_score > 0
+    base_classification['progress_update'] = progress_score > 0
+    base_classification['collaboration'] = collaboration_score > 0
+    
+    return base_classification
 
 # --- Helper Functions for Advanced Analysis ---
 
@@ -181,7 +338,7 @@ def calculate_contribution_quality(metrics: Dict) -> str:
 
 def analyze_user_contributions(messages: List[ChatMessage]) -> List[ContributionMetrics]:
     """
-    Deeply analyze each user's contributions using NLP.
+    Deeply analyze each user's contributions using NLP and trained patterns.
     """
     user_data = defaultdict(lambda: {
         'messages': [],
@@ -189,14 +346,17 @@ def analyze_user_contributions(messages: List[ChatMessage]) -> List[Contribution
         'problem_solving_count': 0,
         'help_given_count': 0,
         'question_count': 0,
+        'tasks_completed': 0,
+        'blockers_reported': 0,
+        'progress_updates': 0,
         'word_counts': [],
         'technical_keywords': set()
     })
     
-    # Analyze each message
+    # Analyze each message with enhanced classification
     for msg in messages:
         doc = nlp(msg.text)
-        classification = classify_message_type(msg.text, doc)
+        classification = enhanced_message_classification(msg.text, doc)
         
         user_data[msg.username]['messages'].append(msg.text)
         user_data[msg.username]['word_counts'].append(len(msg.text.split()))
@@ -213,6 +373,16 @@ def analyze_user_contributions(messages: List[ChatMessage]) -> List[Contribution
         
         if classification['is_question']:
             user_data[msg.username]['question_count'] += 1
+        
+        # Enhanced metrics from training
+        if classification.get('task_completed'):
+            user_data[msg.username]['tasks_completed'] += 1
+        
+        if classification.get('has_blocker'):
+            user_data[msg.username]['blockers_reported'] += 1
+        
+        if classification.get('progress_update'):
+            user_data[msg.username]['progress_updates'] += 1
     
     # Calculate metrics for each user
     contributions = []
@@ -220,22 +390,25 @@ def analyze_user_contributions(messages: List[ChatMessage]) -> List[Contribution
     for username, data in user_data.items():
         total_messages = len(data['messages'])
         
-        # Technical contribution score (0-100)
+        # Enhanced technical contribution score (0-100)
         technical_ratio = data['technical_count'] / total_messages if total_messages > 0 else 0
         problem_solving_ratio = data['problem_solving_count'] / total_messages if total_messages > 0 else 0
         help_ratio = data['help_given_count'] / total_messages if total_messages > 0 else 0
+        completion_ratio = data['tasks_completed'] / total_messages if total_messages > 0 else 0
         
-        # Weighted score
+        # Weighted score with completion bonus
         technical_score = (
-            (technical_ratio * 50) +  # 50% weight on technical content
-            (problem_solving_ratio * 30) +  # 30% weight on problem solving
-            (help_ratio * 20)  # 20% weight on helping others
+            (technical_ratio * 40) +  # 40% weight on technical content
+            (problem_solving_ratio * 25) +  # 25% weight on problem solving
+            (help_ratio * 15) +  # 15% weight on helping others
+            (completion_ratio * 20)  # 20% weight on task completion
         )
         
         avg_msg_length = sum(data['word_counts']) / len(data['word_counts']) if data['word_counts'] else 0
         
-        # Determine if user is an active contributor (not just chatting)
+        # Determine if user is an active contributor
         is_active = (
+            data['tasks_completed'] >= 1 or  # Completed at least 1 task
             data['technical_count'] >= 2 or  # At least 2 technical messages
             (technical_ratio >= 0.3 and total_messages >= 3)  # Or 30% technical with 3+ messages
         )
@@ -264,13 +437,58 @@ def analyze_user_contributions(messages: List[ChatMessage]) -> List[Contribution
 # Create the main FastAPI application instance
 app = FastAPI()
 
+# --- Startup Event: Train on synthetic data ---
+@app.on_event("startup")
+async def startup_event():
+    """
+    Run training on synthetic data when the service starts.
+    """
+    print("🚀 Starting AI Chat Analysis Service...")
+    train_on_synthetic_data()
+    print("✅ Service ready!")
+
 # --- 6. API Endpoints ---
 
 # Create a GET endpoint at '/' for a health check
 # It should return a simple JSON object: {"status": "ok"}
 @app.get("/")
 def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "trained": len(TRAINED_PATTERNS['task_completion']) > 0,
+        "training_messages": TRAINING_STATS.get('total_messages', 0)
+    }
+
+# Add endpoint to get training statistics
+@app.get("/training_stats")
+def get_training_stats():
+    """
+    Returns statistics about the trained model.
+    """
+    return {
+        "total_training_messages": TRAINING_STATS.get('total_messages', 0),
+        "avg_message_length": round(TRAINING_STATS.get('avg_message_length', 0), 2),
+        "patterns_learned": {
+            "task_completion": len(TRAINED_PATTERNS['task_completion']),
+            "blockers": len(TRAINED_PATTERNS['blockers']),
+            "progress_updates": len(TRAINED_PATTERNS['progress_updates']),
+            "collaboration": len(TRAINED_PATTERNS['collaboration'])
+        },
+        "top_keywords": list(TRAINING_STATS.get('common_patterns', {}).keys())[:15],
+        "active_users_in_training": len(TRAINING_STATS.get('user_activity_distribution', {}))
+    }
+
+# Add endpoint to manually retrain
+@app.post("/retrain")
+def retrain_model():
+    """
+    Manually trigger retraining on synthetic data.
+    """
+    train_on_synthetic_data()
+    return {
+        "status": "retrained",
+        "training_messages": TRAINING_STATS.get('total_messages', 0)
+    }
 
 # Create a POST endpoint at '/analyze'
 # It will accept 'AnalysisInput' data
@@ -408,9 +626,9 @@ def analyze_user_participation(data: AnalysisInput):
 @app.post("/weekly_report", response_model=WeeklyMentorReport)
 def generate_weekly_mentor_report(data: AnalysisInput):
     """
-    Generate a comprehensive weekly report for mentors.
+    Generate a comprehensive weekly report for mentors using trained AI models.
     Analyzes who is actually working vs just chatting, identifies key discussions,
-    and provides actionable insights.
+    tracks task completion, and provides actionable insights.
     """
     
     if not data.messages:
@@ -424,15 +642,41 @@ def generate_weekly_mentor_report(data: AnalysisInput):
             key_discussions=[],
             technical_topics=[],
             recommendations=["No activity to analyze"],
-            activity_summary="No messages received this week."
+            activity_summary="No messages received this week.",
+            tasks_completed=0,
+            blockers_reported=0,
+            progress_updates=0,
+            collaboration_score=0.0
         )
     
-    # Analyze user contributions
+    # Analyze user contributions with enhanced trained patterns
     contributions = analyze_user_contributions(data.messages)
     
     # Calculate overall sentiment
     full_text = " ".join([msg.text for msg in data.messages])
     overall_sentiment = sia.polarity_scores(full_text)['compound']
+    
+    # Track task completion, blockers, and progress using trained patterns
+    tasks_completed = 0
+    blockers_reported = 0
+    progress_updates = 0
+    collaboration_count = 0
+    
+    for msg in data.messages:
+        doc = nlp(msg.text)
+        classification = enhanced_message_classification(msg.text, doc)
+        
+        if classification.get('task_completed'):
+            tasks_completed += 1
+        if classification.get('has_blocker'):
+            blockers_reported += 1
+        if classification.get('progress_update'):
+            progress_updates += 1
+        if classification.get('collaboration'):
+            collaboration_count += 1
+    
+    # Calculate collaboration score (0-100)
+    collaboration_score = min(100, (collaboration_count / len(data.messages)) * 200)
     
     # Extract key technical topics using NLP
     doc = nlp(full_text)
@@ -440,81 +684,155 @@ def generate_weekly_mentor_report(data: AnalysisInput):
     # Extract nouns and proper nouns as potential topics
     topics = []
     for chunk in doc.noun_chunks:
-        if len(chunk.text.split()) <= 3 and chunk.text.lower() not in ['team', 'everyone', 'anyone']:
+        if len(chunk.text.split()) <= 3 and chunk.text.lower() not in ['team', 'everyone', 'anyone', 'someone']:
             topics.append(chunk.text)
     
-    # Count topic frequency
+    # Count topic frequency and filter using trained patterns
     topic_counter = Counter(topics)
-    technical_topics = [topic for topic, count in topic_counter.most_common(10) if count >= 2]
+    technical_topics = []
     
-    # Identify key discussions (sentences with high information content)
+    for topic, count in topic_counter.most_common(15):
+        # Check if topic appears in training data common patterns
+        topic_lower = topic.lower()
+        if count >= 2 or topic_lower in TRAINING_STATS.get('common_patterns', {}):
+            technical_topics.append(topic)
+    
+    technical_topics = technical_topics[:10]
+    
+    # Identify key discussions with enhanced pattern matching
     key_discussions = []
-    important_keywords = ['complete', 'finish', 'implement', 'deploy', 'ready', 'done', 'issue', 'problem', 'solution']
+    important_keywords = [
+        'complete', 'finish', 'implement', 'deploy', 'ready', 'done', 
+        'issue', 'problem', 'solution', 'merged', 'pushed', 'reviewed',
+        'blocked', 'stuck', 'error', 'working on', 'started'
+    ]
     
     for msg in data.messages:
-        if any(keyword in msg.text.lower() for keyword in important_keywords):
-            if len(msg.text) > 30:  # Meaningful length
-                key_discussions.append(f"{msg.username}: {msg.text[:100]}..." if len(msg.text) > 100 else f"{msg.username}: {msg.text}")
+        msg_lower = msg.text.lower()
+        # Check against important keywords and trained patterns
+        if any(keyword in msg_lower for keyword in important_keywords):
+            if len(msg.text) > 20:  # Meaningful length
+                discussion_text = f"{msg.username}: {msg.text[:120]}..." if len(msg.text) > 120 else f"{msg.username}: {msg.text}"
+                key_discussions.append(discussion_text)
     
-    # Limit to top 5 key discussions
-    key_discussions = key_discussions[:5]
+    # Limit to top 8 key discussions
+    key_discussions = key_discussions[:8]
     
-    # Determine project momentum
+    # Determine project momentum using trained insights
     active_contributors = [c for c in contributions if c.is_active_contributor]
     technical_message_ratio = sum(c.code_related_messages for c in contributions) / len(data.messages)
+    completion_rate = tasks_completed / len(data.messages) if len(data.messages) > 0 else 0
     
-    if technical_message_ratio >= 0.5 and len(active_contributors) >= 3:
+    # Enhanced momentum calculation
+    if technical_message_ratio >= 0.5 and len(active_contributors) >= 3 and tasks_completed >= 5:
         momentum = "Strong"
-    elif technical_message_ratio >= 0.3 or len(active_contributors) >= 2:
+    elif (technical_message_ratio >= 0.3 or len(active_contributors) >= 2) and tasks_completed >= 2:
         momentum = "Moderate"
     else:
         momentum = "Weak"
     
-    # Generate recommendations
+    # Generate AI-powered recommendations based on training insights
     recommendations = []
+    
+    # Task completion analysis
+    if tasks_completed == 0:
+        recommendations.append("⚠️ No task completions detected this week. Team may need help with execution or clearer milestones.")
+    elif tasks_completed < 3:
+        recommendations.append(f"📊 Only {tasks_completed} task(s) completed. Consider reviewing workload distribution and blockers.")
+    else:
+        recommendations.append(f"✅ Good progress! {tasks_completed} task(s) completed this week.")
+    
+    # Blocker analysis
+    if blockers_reported > 5:
+        recommendations.append(f"🚧 {blockers_reported} blockers reported. Schedule a team sync to resolve impediments.")
+    elif blockers_reported > 0:
+        recommendations.append(f"⚠️ {blockers_reported} blocker(s) identified. Monitor resolution progress.")
+    
+    # Collaboration analysis
+    if collaboration_score < 30:
+        recommendations.append("🤝 Low collaboration detected. Encourage more peer reviews and team discussions.")
+    elif collaboration_score > 60:
+        recommendations.append(f"🌟 Excellent collaboration! Team is actively helping each other (score: {collaboration_score:.0f}/100).")
     
     # Check for inactive users
     inactive_users = [c.username for c in contributions if not c.is_active_contributor and c.code_related_messages == 0]
-    if inactive_users:
-        recommendations.append(f"Users with minimal technical contribution: {', '.join(inactive_users[:3])}. Consider checking their progress.")
+    if inactive_users and len(inactive_users) <= 5:
+        recommendations.append(f"👥 Limited contribution from: {', '.join(inactive_users[:3])}. Follow up on their progress.")
+    elif len(inactive_users) > 5:
+        recommendations.append(f"👥 {len(inactive_users)} team members show minimal technical activity. Review task assignments.")
     
-    # Check if there are enough problem solvers
-    problem_solvers = [c for c in contributions if c.problem_solving_count >= 2]
-    if len(problem_solvers) < 2:
-        recommendations.append("Limited problem-solving activity detected. Team may need more troubleshooting support.")
-    
-    # Check for collaboration
-    helpers = [c for c in contributions if c.help_given_count >= 2]
-    if len(helpers) >= 2:
-        recommendations.append(f"Good collaboration! {', '.join([h.username for h in helpers[:3]])} actively helping others.")
-    else:
-        recommendations.append("Limited peer support observed. Encourage more team collaboration.")
-    
-    # Check sentiment
-    if overall_sentiment < -0.1:
-        recommendations.append("Team sentiment is somewhat negative. May indicate frustration or blockers.")
+    # Check sentiment with context
+    if overall_sentiment < -0.2:
+        recommendations.append("😟 Team sentiment is negative. May indicate frustration, blockers, or low morale. Consider a team check-in.")
+    elif overall_sentiment < 0:
+        recommendations.append("😐 Team sentiment is slightly negative. Monitor for emerging issues.")
     elif overall_sentiment > 0.3:
-        recommendations.append("Positive team sentiment detected! Team morale seems high.")
+        recommendations.append("😊 Positive team sentiment! Morale is high - great sign for productivity.")
     
-    # Check activity level
-    if len(data.messages) < 20:
-        recommendations.append("Communication volume is low. Encourage more status updates and discussions.")
+    # Activity level analysis compared to training baseline
+    avg_training_msgs = TRAINING_STATS.get('total_messages', 100) / 7  # Rough weekly average
+    if len(data.messages) < avg_training_msgs * 0.3:
+        recommendations.append(f"📉 Communication volume ({len(data.messages)} msgs) is below expected baseline. Encourage daily standups.")
+    elif len(data.messages) > avg_training_msgs * 2:
+        recommendations.append(f"📈 High communication volume ({len(data.messages)} msgs). Team is actively engaged!")
     
+    # Progress update analysis
+    if progress_updates < len(data.messages) * 0.1:
+        recommendations.append("📝 Few progress updates detected. Encourage team to share status updates regularly.")
+    
+    # Technical topic diversity
+    if len(technical_topics) < 3:
+        recommendations.append("🔍 Limited technical topic diversity. Team may be focused on narrow scope or need more varied work.")
+    
+    # Default positive message if no issues
     if not recommendations:
-        recommendations.append("Team is performing well. Continue current practices.")
+        recommendations.append("✨ Team is performing well across all metrics. Maintain current practices!")
     
-    # Generate activity summary using AI
-    summary_text = f"This week, the team exchanged {len(data.messages)} messages with {len(contributions)} participants. "
-    summary_text += f"Technical discussions accounted for {int(technical_message_ratio * 100)}% of conversations. "
+    # Generate comprehensive AI summary using training insights
+    summary_parts = []
     
+    # Opening statement
+    summary_parts.append(f"This week, the team exchanged {len(data.messages)} messages with {len(contributions)} active participants.")
+    
+    # Technical activity
+    tech_percentage = int(technical_message_ratio * 100)
+    summary_parts.append(f"Technical discussions accounted for {tech_percentage}% of all conversations.")
+    
+    # Task completion
+    if tasks_completed > 0:
+        summary_parts.append(f"The team completed {tasks_completed} task(s) and reported {blockers_reported} blocker(s).")
+    
+    # Top contributors with specific contributions
     if active_contributors:
-        top_3 = [c.username for c in active_contributors[:3]]
-        summary_text += f"Top contributors: {', '.join(top_3)}. "
+        top_3_names = [c.username for c in active_contributors[:3]]
+        summary_parts.append(f"Top contributors: {', '.join(top_3_names)}.")
+        
+        # Highlight best contributor's metrics
+        if active_contributors[0].technical_contribution_score > 50:
+            best = active_contributors[0]
+            summary_parts.append(
+                f"{best.username} led with {best.code_related_messages} technical messages "
+                f"and {best.help_given_count} helpful interactions."
+            )
     
-    summary_text += f"Project momentum is {momentum.lower()} with "
-    summary_text += f"{'positive' if overall_sentiment > 0.1 else 'neutral' if overall_sentiment > -0.1 else 'concerning'} team sentiment."
+    # Momentum assessment
+    summary_parts.append(
+        f"Project momentum is {momentum.lower()} with "
+        f"{'positive' if overall_sentiment > 0.1 else 'neutral' if overall_sentiment > -0.1 else 'concerning'} "
+        f"team sentiment ({overall_sentiment:.2f})."
+    )
     
-    # Determine report period
+    # Collaboration insight
+    if collaboration_score > 50:
+        summary_parts.append(f"Strong collaboration observed (score: {collaboration_score:.0f}/100).")
+    
+    # Areas of focus (technical topics)
+    if technical_topics:
+        summary_parts.append(f"Main focus areas: {', '.join(technical_topics[:5])}.")
+    
+    activity_summary = " ".join(summary_parts)
+    
+    # Determine report period with timestamp
     report_period = f"Week of {datetime.now().strftime('%B %d, %Y')}"
     
     return WeeklyMentorReport(
@@ -525,9 +843,13 @@ def generate_weekly_mentor_report(data: AnalysisInput):
         project_momentum=momentum,
         top_contributors=contributions[:5],  # Top 5 contributors
         key_discussions=key_discussions,
-        technical_topics=technical_topics[:8],
+        technical_topics=technical_topics,
         recommendations=recommendations,
-        activity_summary=summary_text
+        activity_summary=activity_summary,
+        tasks_completed=tasks_completed,
+        blockers_reported=blockers_reported,
+        progress_updates=progress_updates,
+        collaboration_score=round(collaboration_score, 2)
     )
 
 # --- 8. Uvicorn run command ---

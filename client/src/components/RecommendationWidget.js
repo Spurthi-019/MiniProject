@@ -144,6 +144,18 @@ const RecommendationWidget = ({ projectId, limit = 5 }) => {
         <Alert severity="error">
           <AlertTitle>Error</AlertTitle>
           {error}
+          <Typography variant="body2" sx={{ mt: 2 }}>
+            {error.includes('not found') || error.includes('Server error') ? (
+              <>
+                <strong>Tip:</strong> Make sure:
+                <ul style={{ marginLeft: '20px', marginTop: '8px' }}>
+                  <li>You have created a project and selected it</li>
+                  <li>The backend server is running</li>
+                  <li>MongoDB is connected</li>
+                </ul>
+              </>
+            ) : null}
+          </Typography>
         </Alert>
       </Paper>
     );
